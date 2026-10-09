@@ -45,4 +45,8 @@ cloud:
 
 aws:
   sqs:
-    service-order-queue: ${SERVICE_ORDER_QUEUE_NAME}
+    os-command-queue: ${OS_COMMAND_QUEUE_NAME:officyna-os-commands}
+    os-response-queue: ${OS_RESPONSE_QUEUE_NAME:officyna-os-responses}
+    billing-request-queue: ${BILLING_REQUEST_QUEUE_NAME:officyna-billing-requests}
+    billing-response-queue: ${BILLING_RESPONSE_QUEUE_NAME:officyna-billing-responses}
+# Contratos SQS: criar filas e configurar nomes antes de executar

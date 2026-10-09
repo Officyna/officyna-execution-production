@@ -69,7 +69,7 @@ services:
     restart: on-failure
     depends_on:
       app:
-       condition: service_healthy
+        condition: service_healthy
     environment:
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
       KONG_DATABASE: off

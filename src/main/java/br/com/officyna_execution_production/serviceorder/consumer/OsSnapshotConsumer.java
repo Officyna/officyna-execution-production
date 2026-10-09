@@ -1,0 +1,3 @@
+package br.com.officyna_execution_production.serviceorder.consumer;
+import br.com.officyna_execution_production.serviceorder.event.OsSnapshotEvent;import br.com.officyna_execution_production.serviceorder.service.ServiceOrderExecutionService;import io.awspring.cloud.sqs.annotation.SqsListener;import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Component;
+@Component @RequiredArgsConstructor public class OsSnapshotConsumer {private final ServiceOrderExecutionService service;@SqsListener("${aws.sqs.os-response-queue}") public void consume(OsSnapshotEvent event){service.onOsSnapshot(event);}}

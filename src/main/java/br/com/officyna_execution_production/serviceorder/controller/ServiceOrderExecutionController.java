@@ -1,112 +1,71 @@
 package br.com.officyna_execution_production.serviceorder.controller;
 
-import br.com.officyna_execution_production.serviceorder.domain.entity.ServiceOrderExecution;
-import br.com.officyna_execution_production.serviceorder.domain.enums.ServiceOrderStatus;
+import br.com.officyna_execution_production.serviceorder.api.request.*;
+import br.com.officyna_execution_production.serviceorder.domain.entity.ExecutionWork;
 import br.com.officyna_execution_production.serviceorder.service.ServiceOrderExecutionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/execution/service-orders")
+@RequestMapping("/execution")
 @RequiredArgsConstructor
 public class ServiceOrderExecutionController {
-
     private final ServiceOrderExecutionService service;
 
-    @GetMapping
-    public ResponseEntity<List<ServiceOrderExecution>> findAll() {
-
-        return ResponseEntity.ok(
-                service.findAll()
-        );
+    @PostMapping("/{id}/diagnosis/request")
+    public ResponseEntity<String> request(@PathVariable String id) {
+        return ResponseEntity.accepted().body(service.requestDiagnosis(id));
     }
 
-    @GetMapping("/received")
-    public ResponseEntity<List<ServiceOrderExecution>> findReceived() {
-
-        return ResponseEntity.ok(
-                service.findByStatus(ServiceOrderStatus.RECEBIDA)
-        );
+    @PostMapping("/diagnosis/{correlationId}/confirm")
+    public ResponseEntity<Void> confirm(@PathVariable String correlationId, @RequestBody AssignMechanicRequest r) {
+        service.confirmDiagnosis(correlationId, r.mechanicId());
+        return ResponseEntity.accepted().build();
     }
 
-    @PatchMapping("/{serviceOrderId}/diagnosis/start")
-    public ResponseEntity<ServiceOrderExecution> startDiagnosis(
-            @PathVariable String serviceOrderId
-    ) {
-
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.EM_DIAGNOSTICO
-                )
-        );
+    @PostMapping("/{id}/labors")
+    public ExecutionWork addLabor(@PathVariable String id, @Valid @RequestBody AddLaborRequest r) {
+        return service.addLabor(id, r);
     }
 
-    @PatchMapping("/{serviceOrderId}/approval/wait")
-    public ResponseEntity<ServiceOrderExecution> waitForApproval(
-            @PathVariable String serviceOrderId
-    ) {
-
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.AGUARDANDO_APROVACAO
-                )
-        );
+    @DeleteMapping("/{id}/labors/{laborId}")
+    public ExecutionWork removeLabor(@PathVariable String id, @PathVariable String laborId) {
+        return service.removeLabor(id, laborId);
     }
 
-    @PatchMapping("/{serviceOrderId}/approve")
-    public ResponseEntity<ServiceOrderExecution> approve(
-            @PathVariable String serviceOrderId
-    ) {
-
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.APROVADA
-                )
-        );
+    @PostMapping("/{id}/supplies")
+    public ExecutionWork addSupply(@PathVariable String id, @Valid @RequestBody AddSupplyRequest r) {
+        return service.addSupply(id, r);
     }
 
-    @PatchMapping("/{serviceOrderId}/reject")
-    public ResponseEntity<ServiceOrderExecution> reject(
-            @PathVariable String serviceOrderId
-    ) {
-
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.RECUSADA
-                )
-        );
+    @DeleteMapping("/{id}/supplies/{supplyId}")
+    public ExecutionWork removeSupply(@PathVariable String id, @PathVariable String supplyId) {
+        return service.removeSupply(id, supplyId);
     }
 
-    @PatchMapping("/{serviceOrderId}/execution/start")
-    public ResponseEntity<ServiceOrderExecution> startExecution(
-            @PathVariable String serviceOrderId
-    ) {
-
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.EM_EXECUCAO
-                )
-        );
+    @PostMapping("/{id}/submit-for-approval")
+    public ResponseEntity<Void> approval(@PathVariable String id) {
+        service.submitForApproval(id);
+        return ResponseEntity.accepted().build();
     }
 
-    @PatchMapping("/{serviceOrderId}/finish")
-    public ResponseEntity<ServiceOrderExecution> finish(
-            @PathVariable String serviceOrderId
-    ) {
+    @PostMapping("/{id}/labors/{laborId}/start")
+    public ResponseEntity<Void> start(@PathVariable String id, @PathVariable String laborId) {
+        service.startLabor(id, laborId);
+        return ResponseEntity.accepted().build();
+    }
 
-        return ResponseEntity.ok(
-                service.updateStatus(
-                        serviceOrderId,
-                        ServiceOrderStatus.FINALIZADA
-                )
-        );
+    @PostMapping("/{id}/labors/{laborId}/finish")
+    public ResponseEntity<Void> end(@PathVariable String id, @PathVariable String laborId) {
+        service.finishLabor(id, laborId);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/finish")
+    public ResponseEntity<Void> finish(@PathVariable String id) {
+        service.finish(id);
+        return ResponseEntity.accepted().build();
     }
 }
