@@ -16,5 +16,7 @@ public interface LaborExecutionRepository {
             String laborId
     );
 
+    Optional<LaborExecution> findById(String id);
+
     List<LaborExecution> findByLaborId(String laborId);
 }

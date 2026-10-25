@@ -7,8 +7,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OsSnapshotEvent {
-    private String correlationId;
     private String serviceOrderId;
+    private String correlationId;
     private ServiceOrderStatus status;
-    private String mechanicId;
 }

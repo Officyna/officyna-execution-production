@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+@org.springframework.transaction.annotation.Transactional
 public class LaborService {
 
     private static final Logger log = LoggerFactory.getLogger(LaborService.class);

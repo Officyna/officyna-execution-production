@@ -1,52 +1,45 @@
 spring:
-  jackson:
-    read-unknown-enum-values-as-null: true
   mongodb:
-    uri: ${MONGODB_URI:mongodb://localhost:27017/officyna}
-
+    uri: ${MONGODB_URI:mongodb://localhost:27017/?replicaSet=rs0}
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:us-east-1}
 server:
-  port: 8084
-
+  port: ${SERVER_PORT:8084}
+os-service:
+  base-url: ${OS_SERVICE_BASE_URL:http://localhost:8081}
+database:
+  supply-name: ${SUPPLY_DATABASE:officyna_supply}
+  labor-name: ${LABOR_DATABASE:officyna_labor}
+  snapshot-name: ${SNAPSHOT_DATABASE:officyna_snapshot}
+  seed:
+    enabled: false
 jwt:
   secret: ${JWT_SECRET:officyna-secret-key-change-in-production-min-256bits}
-  #3600000=1hr, 28800000=8hrs, 86400000=24hrs
-
   expiration: ${JWT_EXPIRATION:86400000}
-
 springdoc:
   api-docs:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-    operationsSorter: alpha
-
-database:
-  seed:
-    enabled: false
-
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics
   endpoint:
     health:
       show-details: never
-
 logging:
   level:
-    br.com.officyna: INFO
+    br.com.officyna_execution_production: INFO
     org.springframework.security: INFO
-
-cloud:
-    aws:
-      region:
-        static: us-east-1
-
 aws:
   sqs:
-    os-command-queue: ${OS_COMMAND_QUEUE_NAME:officyna-os-commands}
-    os-response-queue: ${OS_RESPONSE_QUEUE_NAME:officyna-os-responses}
-    billing-request-queue: ${BILLING_REQUEST_QUEUE_NAME:officyna-billing-requests}
-    billing-response-queue: ${BILLING_RESPONSE_QUEUE_NAME:officyna-billing-responses}
-# Contratos SQS: criar filas e configurar nomes antes de executar
+    event-for-diagnostics: ${EVENT_FOR_DIAGNOSTICS_QUEUE:eventForDiagnostics}
+    event-diagnosis: ${EVENT_DIAGNOSIS_QUEUE:eventDiagnosis}
+    event-diagnosis-completed: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:eventDiagnosisCompleted}
+    event-execution-started: ${EVENT_EXECUTION_STARTED_QUEUE:eventExecutionStarted}
+    event-for-os-completed: ${EVENT_FOR_OS_COMPLETED_QUEUE:eventForOsCompleted}
+    approval-queue: ${APPROVAL_QUEUE:productionApproval}

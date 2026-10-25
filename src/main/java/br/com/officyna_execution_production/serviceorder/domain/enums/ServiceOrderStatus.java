@@ -1,19 +1,44 @@
 package br.com.officyna_execution_production.serviceorder.domain.enums;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 @Getter
-@RequiredArgsConstructor
 public enum ServiceOrderStatus {
+    RECEBIDA(1, "Recebida"),
+    EM_DIAGNOSTICO(2, "Em diagnóstico"),
+    AGUARDANDO_APROVACAO(3, "Aguardando aprovação"),
+    EM_EXECUCAO(4, "Em execução"),
+    FINALIZADA(5, "Finalizada"),
+    APROVADA(6, "Aprovada"),
+    ENTREGUE(7,"Entregue"),
+    RECUSADA(8, "Recusada");
 
-    RECEBIDA("Recebida"),
-    EM_DIAGNOSTICO("Em diagnóstico"),
-    AGUARDANDO_APROVACAO("Aguardando aprovação"),
-    APROVADA("Aprovada"),
-    EM_EXECUCAO("Em execução"),
-    FINALIZADA("Finalizada"),
-    RECUSADA("Recusada");
+    private final Integer idStatus;
 
     private final String statusName;
+
+    ServiceOrderStatus (Integer idStatus, String statusName){
+        this.idStatus = idStatus;
+        this.statusName = statusName;
+    }
+
+    public static ServiceOrderStatus fromId(Integer id) {
+        for (ServiceOrderStatus status : ServiceOrderStatus.values()) {
+            if (status.idStatus.equals(id)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Invalid ServiceOrderStatus ID: " + id);
+    }
+
+    public int getPriority() {
+        return switch (this) {
+            case EM_EXECUCAO -> 1;
+            case AGUARDANDO_APROVACAO -> 2;
+            case APROVADA -> 3;
+            case EM_DIAGNOSTICO -> 4;
+            case RECEBIDA -> 5;
+            default -> Integer.MAX_VALUE;
+        };
+    }
 }

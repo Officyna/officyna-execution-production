@@ -7,6 +7,7 @@ import br.com.officyna_execution_production.monitoring.domain.entity.LaborMonito
 import br.com.officyna_execution_production.monitoring.domain.repository.LaborExecutionRepository;
 import br.com.officyna_execution_production.monitoring.domain.repository.LaborMonitoringRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -18,6 +19,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
+@org.springframework.transaction.annotation.Transactional
 public class LaborMonitoringService {
 
     private static final double WORK_DAY_SECONDS_DOUBLE = 28800.0;
@@ -54,6 +56,7 @@ public class LaborMonitoringService {
      * Registra uma execução finalizada e atualiza o monitoramento
      * do labor.
      */
+    @Async
     public void registerExecution(
             String serviceOrderId,
             String laborId,
@@ -101,12 +104,9 @@ public class LaborMonitoringService {
          * SQS pode entregar a mesma mensagem mais de uma vez.
          * Antes de salvar, verificamos se essa execução já foi registrada.
          */
-        Optional<LaborExecution> existingExecution =
-                laborExecutionRepository
-                        .findByServiceOrderIdAndLaborId(
-                                serviceOrderId,
-                                laborId
-                        );
+        String executionId = java.util.UUID.nameUUIDFromBytes(
+                (serviceOrderId + ":" + laborId + ":" + startDate).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        Optional<LaborExecution> existingExecution = laborExecutionRepository.findById(executionId);
 
         if (existingExecution.isPresent()) {
 
@@ -121,6 +121,7 @@ public class LaborMonitoringService {
         }
 
         LaborExecution execution = LaborExecution.builder()
+                .id(executionId)
                 .serviceOrderId(serviceOrderId)
                 .laborId(laborId)
                 .startDate(startDate)

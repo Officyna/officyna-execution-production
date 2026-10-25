@@ -1,23 +1,17 @@
-name: CI/CD Pipeline (consolidado)
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-      - developer
+    branches: [main, developer]
   pull_request:
-    branches:
-      - main
-      - developer
+    branches: [main, developer]
   workflow_dispatch:
     inputs:
       action:
         description: "O que executar"
         required: true
         type: choice
-        options:
-          - apply
-          - destroy
+        options: [apply, destroy]
         default: apply
       confirm:
         description: 'Para destroy, digite "destroy" para confirmar'
@@ -28,13 +22,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: ghcr.io/officyna/officyna-service
+  IMAGE_NAME: ghcr.io/officyna/officyna-execution-production
   JAVA_VERSION: "21"
 
 jobs:
   build-test:
-    name: Build e Testes
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+    name: Build e testes
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action == 'apply'
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -44,25 +38,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configurar JDK ${{ env.JAVA_VERSION }} (Temurin)
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
-      - name: Compilar e executar testes (mvn verify)
+      - name: Compilar e executar testes
         run: mvn --batch-mode --update-snapshots verify
 
-      - name: Análise de qualidade (SonarCloud)
+      - name: Análise SonarCloud
         if: ${{ env.SONAR_TOKEN != '' }}
         run: |
           mvn --batch-mode sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=officyna \
-            -Dsonar.projectKey=officyna-service
+            -Dsonar.projectKey=officyna-execution-production
 
-      - name: Publicar relatório de testes
+      - name: Publicar relatórios de teste
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -73,7 +67,7 @@ jobs:
           if-no-files-found: ignore
 
   docker:
-    name: Build e Push da Imagem Docker
+    name: Build e push da imagem
     needs: build-test
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
     runs-on: ubuntu-latest
@@ -93,7 +87,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Definir tags e metadados da imagem
+      - name: Definir tags e metadados
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -103,7 +97,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
 
-      - name: Build e push da imagem
+      - name: Build e push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -112,15 +106,26 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ==========================================
-  # JOB: Deploy Aplicacao (Kubernetes)
-  # ==========================================
   deploy-app:
-    name: Deploy no Kubernetes
-    needs: [docker]
+    name: Deploy da aplicação no Kubernetes
+    needs: docker
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
     runs-on: ubuntu-latest
     environment: production
+    env:
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'officyna' }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'eks-officyna-service' }}
+      PRODUCTION_EXECUTION_ROLE_ARN: ${{ vars.PRODUCTION_EXECUTION_ROLE_ARN }}
+      DOCDB_ENDPOINT_PARAMETER: ${{ vars.DOCDB_ENDPOINT_PARAMETER || '/officyna/db/endpoint' }}
+      OS_SERVICE_BASE_URL_PARAMETER: ${{ vars.OS_SERVICE_BASE_URL_PARAMETER || '/officyna/os-service/base-url' }}
+      DOCDB_USERNAME: ${{ vars.DOCDB_USERNAME }}
+      EVENT_FOR_DIAGNOSTICS_QUEUE: ${{ vars.EVENT_FOR_DIAGNOSTICS_QUEUE || 'eventForDiagnostics' }}
+      EVENT_DIAGNOSIS_QUEUE: ${{ vars.EVENT_DIAGNOSIS_QUEUE || 'eventDiagnosis' }}
+      EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${{ vars.EVENT_DIAGNOSIS_COMPLETED_QUEUE || 'eventDiagnosisCompleted' }}
+      EVENT_EXECUTION_STARTED_QUEUE: ${{ vars.EVENT_EXECUTION_STARTED_QUEUE || 'eventExecutionStarted' }}
+      EVENT_FOR_OS_COMPLETED_QUEUE: ${{ vars.EVENT_FOR_OS_COMPLETED_QUEUE || 'eventForOsCompleted' }}
+      APPROVAL_QUEUE: ${{ vars.APPROVAL_QUEUE || 'productionApproval' }}
     permissions:
       contents: read
       packages: read
@@ -128,210 +133,160 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Configurar Credenciais AWS
+      - name: Validar configuração do ambiente
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        run: |
+          for variable_name in \
+            AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EKS_CLUSTER_NAME \
+            K8S_NAMESPACE PRODUCTION_EXECUTION_ROLE_ARN DOCDB_ENDPOINT_PARAMETER \
+            DOCDB_USERNAME DB_PASSWORD JWT_SECRET NEW_RELIC_LICENSE_KEY GHCR_USERNAME GHCR_PAT; do
+            if [ -z "${!variable_name}" ]; then
+              echo "Configuração obrigatória ausente: $variable_name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configurar credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Ler endpoint do banco (SSM Parameter Store)
+      - name: Ler endpoint do DocumentDB
         id: docdb
         run: |
-          ENDPOINT=$(aws ssm get-parameter --name "/officyna/db/endpoint" --query "Parameter.Value" --output text)
+          ENDPOINT=$(aws ssm get-parameter --name "$DOCDB_ENDPOINT_PARAMETER" --query "Parameter.Value" --output text)
           echo "endpoint=$ENDPOINT" >> "$GITHUB_OUTPUT"
 
-      - name: Atualizar kube config
-        run: aws eks update-kubeconfig --name eks-officyna-service --region us-east-1
-
-      - name: Aguardar nós prontos
+      - name: Ler URL do OS Service
         run: |
-          echo "Aguardando nós prontos..."
-          kubectl wait --for=condition=Ready nodes --all --timeout=600s || true
+          OS_SERVICE_BASE_URL=$(aws ssm get-parameter --name "$OS_SERVICE_BASE_URL_PARAMETER" --query "Parameter.Value" --output text)
+          if [ -z "$OS_SERVICE_BASE_URL" ] || [ "$OS_SERVICE_BASE_URL" = "None" ]; then
+            echo "URL do OS Service não encontrada no SSM: $OS_SERVICE_BASE_URL_PARAMETER" >&2
+            exit 1
+          fi
+          echo "OS_SERVICE_BASE_URL=$OS_SERVICE_BASE_URL" >> "$GITHUB_ENV"
 
-      - name: Instalar metrics-server (necessário para o HPA)
+      - name: Conectar ao cluster existente
         run: |
-          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl wait --for=condition=Ready nodes --all --timeout=600s
+          kubectl get nodes
+
+      - name: Validar addon de métricas requerido pelo HPA
+        run: kubectl get deployment metrics-server --namespace=kube-system
 
       - name: Instalar envsubst
         run: |
           sudo apt-get update
           sudo apt-get install -y gettext-base
 
-      - name: Aplicar Kong (manifests)
+      - name: Garantir namespace da aplicação
+        run: kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Aplicar ServiceAccount da aplicação
+        run: envsubst '${K8S_NAMESPACE} ${PRODUCTION_EXECUTION_ROLE_ARN}' < k8s/service-account.yaml | kubectl apply -f -
+
+      - name: Aplicar ConfigMap
         run: |
-          kubectl create namespace officyna --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f k8s/kong-declarative-config.yaml
-          kubectl apply -f k8s/kong-deployment.yaml
-          kubectl apply -f k8s/kong-service-proxy.yaml
-          kubectl apply -f k8s/kong-service-admin.yaml || true
+          envsubst '${K8S_NAMESPACE} ${AWS_REGION} ${OS_SERVICE_BASE_URL} ${EVENT_FOR_DIAGNOSTICS_QUEUE} ${EVENT_DIAGNOSIS_QUEUE} ${EVENT_DIAGNOSIS_COMPLETED_QUEUE} ${EVENT_EXECUTION_STARTED_QUEUE} ${EVENT_FOR_OS_COMPLETED_QUEUE} ${APPROVAL_QUEUE}' \
+            < k8s/configmap.yaml | kubectl apply -f -
 
-      - name: Aplicar configmap
-        run: |
-          kubectl apply -f k8s/configmap.yaml
-
-      - name: Verificar URI gerada
-        env:
-          DOCDB_ENDPOINT: ${{ steps.docdb.outputs.endpoint }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        run: |
-          export MONGODB_URI="mongodb://officynasoatdbuser:${DB_PASSWORD}@${DOCDB_ENDPOINT}:27017/officyna?tls=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
-
-          echo "$MONGODB_URI"
-
-      - name: Mostrar secret gerado
+      - name: Criar ou atualizar Secret da aplicação
         env:
           DOCDB_ENDPOINT: ${{ steps.docdb.outputs.endpoint }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
         run: |
-          export MONGODB_URI="mongodb://officynasoatdbuser:${DB_PASSWORD}@${DOCDB_ENDPOINT}:27017/officyna?tls=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
+          MONGODB_URI="$(python3 -c 'import os, urllib.parse; print("mongodb://{}:{}@{}:27017/?tls=true&replicaSet=rs0&authSource=admin&readPreference=primary&retryWrites=false".format(urllib.parse.quote(os.environ["DOCDB_USERNAME"], safe=""), urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""), os.environ["DOCDB_ENDPOINT"]))')"
+          umask 077
+          SECRET_ENV_FILE="$(mktemp)"
+          trap 'rm -f "$SECRET_ENV_FILE"' EXIT
+          printf 'MONGODB_URI=%s\nJWT_SECRET=%s\nNEW_RELIC_LICENSE_KEY=%s\n' "$MONGODB_URI" "$JWT_SECRET" "$NEW_RELIC_LICENSE_KEY" > "$SECRET_ENV_FILE"
+          kubectl create secret generic production-execution-secret \
+            --from-env-file="$SECRET_ENV_FILE" \
+            --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-          envsubst < k8s/secret.yaml
-
-      - name: Aplicar Secret
+      - name: Criar ou atualizar credencial de pull do GHCR
         env:
-          DOCDB_ENDPOINT: ${{ steps.docdb.outputs.endpoint }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-
-        run: |
-          export MONGODB_URI="mongodb://officynasoatdbuser:${DB_PASSWORD}@${DOCDB_ENDPOINT}:27017/officyna?tls=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
-          envsubst < k8s/secret.yaml | kubectl apply -f -
-
-      - name: Criar imagePullSecret
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
           kubectl create secret docker-registry ghcr-secret \
-            --docker-server=ghcr.io \
-            --docker-username=${{ secrets.GHCR_USERNAME }} \
-            --docker-password=${{ secrets.GHCR_PAT }} \
-            --namespace=officyna \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --docker-server=ghcr.io --docker-username="$GHCR_USERNAME" --docker-password="$GHCR_PAT" \
+            --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aplicar Deployment, Service e HPA
+        env:
+          IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
         run: |
-          sed -i "s|image: ${IMAGE_NAME}:latest|image: ${IMAGE_NAME}:${{ needs.docker.outputs.image_tag }}|" k8s/deployment.yaml
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
-          kubectl apply -f k8s/hpa.yaml
+          envsubst '${K8S_NAMESPACE}' < k8s/deployment.yaml | kubectl apply -f -
+          kubectl set image deployment/production-execution-service \
+            production-execution-service="${IMAGE_NAME}:${IMAGE_TAG}" --namespace="$K8S_NAMESPACE"
+          envsubst '${K8S_NAMESPACE}' < k8s/service.yaml | kubectl apply -f -
+          envsubst '${K8S_NAMESPACE}' < k8s/hpa.yaml | kubectl apply -f -
 
-      - name: Aguardar rollout da aplicação
+      - name: Aguardar rollout
         run: |
-          kubectl rollout status deployment/officyna-service -n officyna --timeout=300s
-          kubectl get pods,svc,hpa -n officyna
+          kubectl rollout status deployment/production-execution-service --namespace="$K8S_NAMESPACE" --timeout=300s
+          kubectl get pods,svc,hpa --namespace="$K8S_NAMESPACE"
 
       - name: Logs da aplicação
-        run: |
-          kubectl logs deployment/officyna-service -n officyna
-
-      - name: Obter e Publicar URLs Públicas da Aplicação
-        run: |
-          echo "Buscando endpoint público do Kong Gateway..."
-          ENDPOINT=""
-          for i in $(seq 1 30); do
-            ENDPOINT=$(kubectl get svc kong-proxy -n officyna -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
-            if [ -z "$ENDPOINT" ]; then
-              ENDPOINT=$(kubectl get svc kong-proxy -n officyna -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-            fi
-            if [ -n "$ENDPOINT" ]; then
-              break
-            fi
-            echo "Aguardando Load Balancer da AWS responder... (tentativa $i de 30)"
-            sleep 10
-          done
-
-          if [ -z "$ENDPOINT" ]; then
-            echo "⚠️ Não foi possível obter o Load Balancer a tempo."
-            echo "### ⚠️ Deploy Concluído, mas o Load Balancer ainda está em provisionamento na AWS" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "=================================================="
-            echo "🎉 GATEWAY URL: http://$ENDPOINT:8000/officyna"
-            echo "📚 SWAGGER UI:  http://$ENDPOINT:8000/officyna/swagger-ui/index.html"
-            echo "❤️  HEALTHCHECK: http://$ENDPOINT:8000/officyna/actuator/health"
-            echo "=================================================="
-
-            echo "## 🚀 Deploy Concluído com Sucesso!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Recurso | URL Pública |" >> $GITHUB_STEP_SUMMARY
-            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🌐 **API Gateway (Kong)** | \`http://$ENDPOINT:8000/officyna\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| 📚 **Swagger UI** | [Abrir Swagger](http://$ENDPOINT:8000/officyna/swagger-ui/index.html) |" >> $GITHUB_STEP_SUMMARY
-            echo "| ❤️ **Health Check** | [Ver Status](http://$ENDPOINT:8000/officyna/actuator/health) |" >> $GITHUB_STEP_SUMMARY
-          fi
+        if: success()
+        run: kubectl logs deployment/production-execution-service --namespace="$K8S_NAMESPACE" --tail=200
 
       - name: Diagnóstico em caso de falha
         if: failure()
         run: |
-          echo "===== PODS ====="
-          kubectl get pods -n officyna -o wide
+          kubectl get pods --namespace="$K8S_NAMESPACE" -o wide || true
+          kubectl describe pod --namespace="$K8S_NAMESPACE" -l app.kubernetes.io/name=production-execution || true
+          kubectl get events --namespace="$K8S_NAMESPACE" --sort-by=.metadata.creationTimestamp || true
+          POD=$(kubectl get pods --namespace="$K8S_NAMESPACE" -l app.kubernetes.io/name=production-execution -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$POD" ]; then
+            kubectl logs "$POD" --namespace="$K8S_NAMESPACE" --all-containers=true || true
+            kubectl logs "$POD" --namespace="$K8S_NAMESPACE" --all-containers=true --previous || true
+          fi
 
-          echo "===== DESCRIBE POD ====="
-          kubectl describe pod -n officyna -l app.kubernetes.io/name=officyna
-
-          echo "===== EVENTS ====="
-          kubectl get events -n officyna --sort-by=.metadata.creationTimestamp
-
-      - name: Logs do Pod
-        if: failure()
-        run: |
-          POD=$(kubectl get pods -n officyna -l app.kubernetes.io/name=officyna -o jsonpath='{.items[0].metadata.name}')
-
-          echo "===== POD ====="
-          echo "$POD"
-
-          echo "===== LOGS ATUAIS ====="
-          kubectl logs $POD -n officyna || true
-
-          echo "===== LOGS ANTERIORES ====="
-          kubectl logs $POD -n officyna --previous || true
-
-          echo "===== VARIÁVEIS ====="
-          kubectl describe pod $POD -n officyna
-
-  # ==========================================
-  # JOB: Remover recursos do Kubernetes (App + Kong)
-  # ==========================================
-  # Terraform do EKS e do DocumentDB agora vive nos repos officyna-infra-k8s e
-  # officyna-infra-db. Depois deste job, rode o "destroy" (workflow_dispatch)
-  # em officyna-infra-k8s e só então em officyna-infra-db (o EKS precisa ser
-  # destruído antes da VPC/subnets criadas pelo DocumentDB).
   destroy-app:
-    name: Remover aplicação e Kong do cluster
+    name: Remover recursos da aplicação do cluster
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy' && github.event.inputs.confirm == 'destroy'
     runs-on: ubuntu-latest
     environment: production
+    env:
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'officyna' }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'eks-officyna-service' }}
+    permissions:
+      contents: read
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Configurar Credenciais AWS
+      - name: Configurar credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Atualizar kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name eks-officyna-service \
-            --region ${{ secrets.AWS_REGION }} || \
-          echo "Cluster EKS não encontrado (talvez já destruído); seguindo mesmo assim."
+      - name: Conectar ao cluster existente
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
-      - name: Remover recursos do Kubernetes
+      - name: Remover somente recursos da aplicação
         run: |
-          kubectl delete -f k8s/hpa.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/service.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/deployment.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/secret.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/configmap.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/kong-service-proxy.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/kong-service-admin.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/kong-deployment.yaml --ignore-not-found=true || true
-          kubectl delete -f k8s/kong-declarative-config.yaml --ignore-not-found=true || true
-
-      - name: Aguardar remoção do LoadBalancer
-        run: |
-          echo "Aguardando a AWS remover o LoadBalancer..."
-          sleep 180
+          kubectl delete hpa,service,deployment \
+            --selector=app.kubernetes.io/name=production-execution \
+            --namespace="$K8S_NAMESPACE" --ignore-not-found=true
+          kubectl delete serviceaccount production-execution-service \
+            --namespace="$K8S_NAMESPACE" --ignore-not-found=true
+          kubectl delete configmap production-execution-configmap \
+            --namespace="$K8S_NAMESPACE" --ignore-not-found=true
+          kubectl delete secret production-execution-secret ghcr-secret \
+            --namespace="$K8S_NAMESPACE" --ignore-not-found=true
+          kubectl get all --namespace="$K8S_NAMESPACE"

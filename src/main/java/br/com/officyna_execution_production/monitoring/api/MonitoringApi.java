@@ -28,7 +28,7 @@ public interface MonitoringApi {
     @PutMapping("/force-recalc")
     @Operation(
             summary = "Force recalculation of average execution time for all labors",
-            description = "Scans all service orders and recalculates the average execution time from scratch for every labor"
+            description = "Scans persisted completed labor executions and recalculates the average execution time from scratch for every labor"
     )
     @ApiResponse(responseCode = "200", description = "Recalculation completed successfully")
     ResponseEntity<ForceRecalcResponse> forceRecalc();

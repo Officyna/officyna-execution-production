@@ -6,11 +6,12 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 public record LaborRequest(
-    String name,
-    String description,
-    BigDecimal price,
-    @NotNull
-    @Positive
-    Integer executionTimeInDays,
-    Boolean active
-) {}
+        String name,
+        String description,
+        BigDecimal price,
+        @NotNull
+        @Positive
+        Integer executionTimeInDays,
+        Boolean active
+) {
+}

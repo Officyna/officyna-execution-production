@@ -9,14 +9,21 @@ import java.util.Optional;
  * Interface de repositório pura para LaborEntity.
  * Sem qualquer dependência de Spring Data ou MongoDB.
  */
-public interface LaborRepository{
+public interface LaborRepository {
     Optional<Labor> findByName(String name);
+
     boolean existsByName(String name);
+
     List<Labor> findByActiveTrue();
+
     Labor save(Labor entity);
+
     Optional<Labor> findById(String id);
+
     List<Labor> findAll();
+
     void deleteById(String id);
+
     boolean existsById(String id);
 }
 

@@ -22,8 +22,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
-        ca-certificates \
-        openssl && \
+        ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -40,11 +39,11 @@ RUN csplit -z -f /tmp/aws-cert- /tmp/global-bundle.pem \
         keytool \
             -importcert \
             -trustcacerts \
-            -alias $(basename $cert) \
+            -alias $(basename "$cert") \
             -file $cert \
             -cacerts \
             -storepass changeit \
-            -noprompt || true; \
+            -noprompt; \
     done && \
     rm -rf /tmp/aws-cert-* /tmp/global-bundle.pem
 
@@ -54,22 +53,23 @@ RUN groupadd -r officyna && \
     useradd -r -g officyna officyna
 
 # New Relic Configuration
-RUN mkdir -p /usr/local/newrelic
-ADD ./newrelic/newrelic.jar /usr/local/newrelic/newrelic.jar
-ADD ./newrelic/newrelic.yml /usr/local/newrelic/newrelic.yml
+RUN mkdir -p /usr/local/newrelic/logs && \
+    chown -R officyna:officyna /usr/local/newrelic
+COPY ./newrelic/newrelic.jar /usr/local/newrelic/newrelic.jar
+COPY ./newrelic/newrelic.yml /usr/local/newrelic/newrelic.yml
 
 
 USER officyna
 
 
-COPY --from=builder /app/target/officyna-service-*.jar app.jar
+COPY --from=builder /app/target/officyna-execution-production-*.jar app.jar
 
 
-EXPOSE 8080
+EXPOSE 8084
 
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+    CMD curl -f http://localhost:8084/actuator/health || exit 1
 
 
 ENTRYPOINT ["java","-javaagent:/usr/local/newrelic/newrelic.jar","-Djavax.net.ssl.trustStore=/opt/java/openjdk/lib/security/cacerts", "-Djavax.net.ssl.trustStorePassword=changeit", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
