@@ -23,7 +23,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
-        openssl && \
+        openssl \
+        unzip && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -49,12 +50,15 @@ RUN curl -fsSL \
 RUN groupadd -r officyna && \
     useradd -r -g officyna -d /app officyna
 
-# New Relic Configuration
-RUN mkdir -p /usr/local/newrelic
-ADD ./newrelic/newrelic.jar /usr/local/newrelic/newrelic.jar
-ADD ./newrelic/newrelic.yml /usr/local/newrelic/newrelic.yml
+# New Relic Configuration: download the agent so the build does not depend on
+# a local JAR ignored by Git.
+RUN mkdir -p /usr/local/newrelic /tmp/newrelic-agent && \
+    curl -fsSL https://download.newrelic.com/newrelic/java-agent/newrelic-agent/current/newrelic-java.zip \
+        -o /tmp/newrelic-java.zip && \
+    unzip -q /tmp/newrelic-java.zip -d /tmp/newrelic-agent && \
+    mv /tmp/newrelic-agent/newrelic/newrelic.jar /usr/local/newrelic/newrelic.jar && \
+    rm -rf /tmp/newrelic-agent /tmp/newrelic-java.zip
 
-COPY --chown=officyna:officyna ./newrelic/newrelic.jar /usr/local/newrelic/newrelic.jar
 COPY --chown=officyna:officyna ./newrelic/newrelic.yml /usr/local/newrelic/newrelic.yml
 
 ENV NEW_RELIC_LOG=STDOUT
