@@ -45,4 +45,31 @@ class ExecutionWorkTest {
         assertThrows(ServiceOrderBusinessException.class,
                 () -> work.setStatus(ServiceOrderStatus.EM_DIAGNOSTICO));
     }
+
+    @Test
+    void supportsRefusalFromApprovalQueueAndInitializesNullStockItems() {
+        var work = ExecutionWork.builder().status(ServiceOrderStatus.AGUARDANDO_APROVACAO)
+                .stockReservationItems(null).build();
+        work.initializeStockReservationItems();
+        work.setStatus(ServiceOrderStatus.RECUSADA);
+
+        assertNotNull(work.getStockReservationItems());
+        assertNotNull(work.getRefuseDate());
+    }
+
+    @Test
+    void cannotSetReceivedAgainOrMarkDeliveryInThisService() {
+        var work = ExecutionWork.builder().status(ServiceOrderStatus.EM_DIAGNOSTICO).build();
+        assertThrows(ServiceOrderBusinessException.class, () -> work.setStatus(ServiceOrderStatus.RECEBIDA));
+
+        var finished = ExecutionWork.builder().status(ServiceOrderStatus.FINALIZADA).build();
+        assertThrows(ServiceOrderBusinessException.class, () -> finished.setStatus(ServiceOrderStatus.ENTREGUE));
+    }
+
+    @Test
+    void acceptsNullStatusForExternalReset() {
+        var work = ExecutionWork.builder().status(ServiceOrderStatus.RECEBIDA).build();
+        work.setStatus(null);
+        assertNull(work.getStatus());
+    }
 }

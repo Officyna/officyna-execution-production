@@ -1,4 +1,96 @@
 services:
+  mongodb:
+    image: mongo:7
+    container_name: officyna-production-execution-service-mongodb
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_DATABASE: officyna
+    ports: ["127.0.0.1:27017:27017"]
+    volumes: ["mongo_data:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - officyna-network
+
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongodb: {condition: service_healthy}
+    entrypoint: ["mongosh", "--host", "mongodb:27017", "--eval", "try { rs.status(); } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}); }"]
+    restart: "no"
+    networks:
+      - officyna-network
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: officyna-production-execution-service-mongo-express
+    ports: ["127.0.0.1:8081:8081"]
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/?replicaSet=rs0
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USERNAME:-admin}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin}
+    depends_on:
+      mongo-init: {condition: service_completed_successfully}
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  app:
+    build: .
+    ports: ["8080:8080"]
+    container_name: officyna-production-execution-service-app
+    depends_on:
+      mongo-init: {condition: service_completed_successfully}
+    environment:
+      SERVER_PORT: 8080
+      MONGODB_URI: mongodb://mongodb:27017/?replicaSet=rs0
+      OS_SERVICE_BASE_URL: ${OS_SERVICE_BASE_URL:-http://host.docker.internal:8081}
+      JWT_SECRET: ${JWT_SECRET:-officyna-secret-key-change-in-production-min-256bits}
+      JWT_EXPIRATION: 86400000
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      SPRING_CLOUD_AWS_SQS_ENDPOINT: http://localstack:4566
+      EVENT_FOR_DIAGNOSTICS_QUEUE: ${EVENT_FOR_DIAGNOSTICS_QUEUE:-eventForDiagnostics}
+      EVENT_DIAGNOSIS_QUEUE: ${EVENT_DIAGNOSIS_QUEUE:-eventDiagnosis}
+      EVENT_EXECUTION_STARTED_QUEUE: ${EVENT_EXECUTION_STARTED_QUEUE:-eventExecutionStarted}
+      EVENT_FOR_OS_COMPLETED_QUEUE: ${EVENT_FOR_OS_COMPLETED_QUEUE:-eventForOsCompleted}
+      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-topicAprovacao}
+      EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:-eventDiagnosisCompleted}
+      NEW_RELIC_APP_NAME: production-execution-service
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: officyna-os-service-localstack
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - SERVICES=sqs,sns
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./localstack-init:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "awslocal sqs list-queues || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
   sqs-admin:
     image: pacovk/sqs-admin:latest
     container_name: officyna-production-service-sqs-admin
@@ -15,53 +107,30 @@ services:
     restart: unless-stopped
     networks:
       - officyna-network
-  mongodb:
-    image: mongo:7
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
-    ports: ["127.0.0.1:27017:27017"]
-    volumes: ["mongo_data:/data/db"]
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-  mongo-init:
-    image: mongo:7
-    depends_on:
-      mongodb: {condition: service_healthy}
-    entrypoint: ["mongosh", "--host", "mongodb:27017", "--eval", "try { rs.status(); } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}); }"]
-    restart: "no"
-  mongo-express:
-    image: mongo-express:1
-    profiles: ["tools"]
-    ports: ["127.0.0.1:8081:8081"]
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: officyna-sonarqube
+    profiles:
+      - sonar
     environment:
-      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/?replicaSet=rs0
-      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USERNAME:-admin}
-      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin}
-    depends_on:
-      mongo-init: {condition: service_completed_successfully}
-  app:
-    build: .
-    ports: ["8084:8084"]
-    depends_on:
-      mongo-init: {condition: service_completed_successfully}
-    environment:
-      MONGODB_URI: mongodb://mongodb:27017/?replicaSet=rs0
-      OS_SERVICE_BASE_URL: ${OS_SERVICE_BASE_URL:-http://host.docker.internal:8081}
-      JWT_SECRET: ${JWT_SECRET:-officyna-secret-key-change-in-production-min-256bits}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
-      EVENT_FOR_DIAGNOSTICS_QUEUE: ${EVENT_FOR_DIAGNOSTICS_QUEUE:-eventForDiagnostics}
-      EVENT_DIAGNOSIS_QUEUE: ${EVENT_DIAGNOSIS_QUEUE:-eventDiagnosis}
-      EVENT_EXECUTION_STARTED_QUEUE: ${EVENT_EXECUTION_STARTED_QUEUE:-eventExecutionStarted}
-      EVENT_FOR_OS_COMPLETED_QUEUE: ${EVENT_FOR_OS_COMPLETED_QUEUE:-eventForOsCompleted}
-      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-productionApproval}
-      EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:-eventDiagnosisCompleted}
-      NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
-      NEW_RELIC_APP_NAME: production-execution-service
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
     restart: unless-stopped
+    networks:
+      - officyna-network
+
 volumes:
   mongo_data:
+  sonar_data:
+  sonar_extensions:
+  sonar_logs:
+
+networks:
+  officyna-network:
+    driver: bridge

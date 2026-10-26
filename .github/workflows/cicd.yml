@@ -28,7 +28,7 @@ env:
 jobs:
   build-test:
     name: Build e testes
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action == 'apply'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -113,19 +113,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'officyna' }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'eks-officyna-service' }}
+      K8S_NAMESPACE: officyna
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER_NAME: eks-officyna-service
       PRODUCTION_EXECUTION_ROLE_ARN: ${{ vars.PRODUCTION_EXECUTION_ROLE_ARN }}
-      DOCDB_ENDPOINT_PARAMETER: ${{ vars.DOCDB_ENDPOINT_PARAMETER || '/officyna/db/endpoint' }}
-      OS_SERVICE_BASE_URL_PARAMETER: ${{ vars.OS_SERVICE_BASE_URL_PARAMETER || '/officyna/os-service/base-url' }}
-      DOCDB_USERNAME: ${{ vars.DOCDB_USERNAME }}
-      EVENT_FOR_DIAGNOSTICS_QUEUE: ${{ vars.EVENT_FOR_DIAGNOSTICS_QUEUE || 'eventForDiagnostics' }}
-      EVENT_DIAGNOSIS_QUEUE: ${{ vars.EVENT_DIAGNOSIS_QUEUE || 'eventDiagnosis' }}
-      EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${{ vars.EVENT_DIAGNOSIS_COMPLETED_QUEUE || 'eventDiagnosisCompleted' }}
-      EVENT_EXECUTION_STARTED_QUEUE: ${{ vars.EVENT_EXECUTION_STARTED_QUEUE || 'eventExecutionStarted' }}
-      EVENT_FOR_OS_COMPLETED_QUEUE: ${{ vars.EVENT_FOR_OS_COMPLETED_QUEUE || 'eventForOsCompleted' }}
-      APPROVAL_QUEUE: ${{ vars.APPROVAL_QUEUE || 'productionApproval' }}
     permissions:
       contents: read
       packages: read
@@ -139,14 +130,13 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
           for variable_name in \
             AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EKS_CLUSTER_NAME \
-            K8S_NAMESPACE PRODUCTION_EXECUTION_ROLE_ARN DOCDB_ENDPOINT_PARAMETER \
-            DOCDB_USERNAME DB_PASSWORD JWT_SECRET NEW_RELIC_LICENSE_KEY GHCR_USERNAME GHCR_PAT; do
+            K8S_NAMESPACE PRODUCTION_EXECUTION_ROLE_ARN DB_PASSWORD \
+            JWT_SECRET GHCR_USERNAME GHCR_PAT; do
             if [ -z "${!variable_name}" ]; then
               echo "Configuração obrigatória ausente: $variable_name" >&2
               exit 1
@@ -158,22 +148,13 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Ler endpoint do DocumentDB
         id: docdb
         run: |
-          ENDPOINT=$(aws ssm get-parameter --name "$DOCDB_ENDPOINT_PARAMETER" --query "Parameter.Value" --output text)
+          ENDPOINT=$(aws ssm get-parameter --name "/officyna/db/endpoint" --query "Parameter.Value" --output text)
           echo "endpoint=$ENDPOINT" >> "$GITHUB_OUTPUT"
-
-      - name: Ler URL do OS Service
-        run: |
-          OS_SERVICE_BASE_URL=$(aws ssm get-parameter --name "$OS_SERVICE_BASE_URL_PARAMETER" --query "Parameter.Value" --output text)
-          if [ -z "$OS_SERVICE_BASE_URL" ] || [ "$OS_SERVICE_BASE_URL" = "None" ]; then
-            echo "URL do OS Service não encontrada no SSM: $OS_SERVICE_BASE_URL_PARAMETER" >&2
-            exit 1
-          fi
-          echo "OS_SERVICE_BASE_URL=$OS_SERVICE_BASE_URL" >> "$GITHUB_ENV"
 
       - name: Conectar ao cluster existente
         run: |
@@ -197,7 +178,7 @@ jobs:
 
       - name: Aplicar ConfigMap
         run: |
-          envsubst '${K8S_NAMESPACE} ${AWS_REGION} ${OS_SERVICE_BASE_URL} ${EVENT_FOR_DIAGNOSTICS_QUEUE} ${EVENT_DIAGNOSIS_QUEUE} ${EVENT_DIAGNOSIS_COMPLETED_QUEUE} ${EVENT_EXECUTION_STARTED_QUEUE} ${EVENT_FOR_OS_COMPLETED_QUEUE} ${APPROVAL_QUEUE}' \
+          envsubst '${K8S_NAMESPACE} ${AWS_REGION}' \
             < k8s/configmap.yaml | kubectl apply -f -
 
       - name: Criar ou atualizar Secret da aplicação
@@ -205,13 +186,12 @@ jobs:
           DOCDB_ENDPOINT: ${{ steps.docdb.outputs.endpoint }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
         run: |
-          MONGODB_URI="$(python3 -c 'import os, urllib.parse; print("mongodb://{}:{}@{}:27017/?tls=true&replicaSet=rs0&authSource=admin&readPreference=primary&retryWrites=false".format(urllib.parse.quote(os.environ["DOCDB_USERNAME"], safe=""), urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""), os.environ["DOCDB_ENDPOINT"]))')"
+          MONGODB_URI="$(python3 -c 'import os, urllib.parse; print("mongodb://officynasoatdbuser:{}@{}:27017/?tls=true&replicaSet=rs0&authSource=admin&readPreference=primary&retryWrites=false".format(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""), os.environ["DOCDB_ENDPOINT"]))')"
           umask 077
           SECRET_ENV_FILE="$(mktemp)"
           trap 'rm -f "$SECRET_ENV_FILE"' EXIT
-          printf 'MONGODB_URI=%s\nJWT_SECRET=%s\nNEW_RELIC_LICENSE_KEY=%s\n' "$MONGODB_URI" "$JWT_SECRET" "$NEW_RELIC_LICENSE_KEY" > "$SECRET_ENV_FILE"
+          printf 'MONGODB_URI=%s\nJWT_SECRET=%s\n' "$MONGODB_URI" "$JWT_SECRET" > "$SECRET_ENV_FILE"
           kubectl create secret generic production-execution-secret \
             --from-env-file="$SECRET_ENV_FILE" \
             --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
@@ -262,9 +242,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'officyna' }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'eks-officyna-service' }}
+      K8S_NAMESPACE: officyna
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER_NAME: eks-officyna-service
     permissions:
       contents: read
     steps:
@@ -273,7 +253,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Conectar ao cluster existente
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"

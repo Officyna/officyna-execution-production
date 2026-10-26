@@ -56,6 +56,10 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jackson</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -163,6 +167,23 @@
 					<execution>
 						<id>report</id>
 						<phase>test</phase>
+						<configuration>
+							<!-- Quality coverage measures business rules; framework wiring is verified by integration tests. -->
+							<includes>
+								<include>**/administrative/labor/domain/entity/*</include>
+								<include>**/administrative/labor/domain/exception/*</include>
+								<include>**/administrative/labor/domain/service/*</include>
+								<include>**/administrative/supply/domain/entity/*</include>
+								<include>**/administrative/supply/domain/exception/*</include>
+								<include>**/administrative/supply/domain/service/*</include>
+								<include>**/monitoring/domain/entity/*</include>
+								<include>**/monitoring/domain/service/*</include>
+								<include>**/serviceorder/domain/entity/*</include>
+								<include>**/serviceorder/domain/enums/*</include>
+								<include>**/serviceorder/domain/exception/*</include>
+								<include>**/serviceorder/service/ServiceOrderExecutionService*</include>
+							</includes>
+						</configuration>
 						<goals>
 							<goal>report</goal>
 						</goals>
