@@ -69,7 +69,7 @@ jobs:
   docker:
     name: Build e push da imagem
     needs: build-test
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
     runs-on: ubuntu-latest
     permissions:
       contents: read
