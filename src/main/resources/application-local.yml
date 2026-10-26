@@ -1,0 +1,13 @@
+server:
+  port: 8080
+
+spring:
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27017/?directConnection=true}
+  cloud:
+    aws:
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:test}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:test}
+      sqs:
+        endpoint: ${SQS_ENDPOINT:http://localhost:4566}
