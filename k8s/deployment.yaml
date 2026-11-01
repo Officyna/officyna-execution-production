@@ -23,7 +23,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: production-execution-service
-          image: ghcr.io/officyna/officyna-execution-production:latest
+          image: ${IMAGE_NAME}:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http

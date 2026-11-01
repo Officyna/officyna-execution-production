@@ -225,9 +225,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
         run: |
-          envsubst '${K8S_NAMESPACE}' < k8s/deployment.yaml | kubectl apply -f -
-          kubectl set image deployment/production-execution-service \
-            production-execution-service="${IMAGE_NAME}:${IMAGE_TAG}" --namespace="$K8S_NAMESPACE"
+          envsubst '${K8S_NAMESPACE} ${IMAGE_NAME} ${IMAGE_TAG}' < k8s/deployment.yaml | kubectl apply -f -
           envsubst '${K8S_NAMESPACE}' < k8s/service.yaml | kubectl apply -f -
           envsubst '${K8S_NAMESPACE}' < k8s/hpa.yaml | kubectl apply -f -
 
