@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: production-execution-configmap
+  labels:
+    app.kubernetes.io/name: production-execution
+  namespace: ${K8S_NAMESPACE}
+data:
+  SPRING_PROFILES_ACTIVE: "default"
+  SERVER_PORT: "8084"
+  OS_SERVICE_BASE_URL: "http://officyna-os-service"
+  JWT_EXPIRATION: "86400000"
+  LOG_LEVEL_APP: "INFO"
+  LOG_LEVEL_SECURITY: "INFO"
+  DATABASE_SEED_ENABLED: "false"
+  AWS_REGION: "${AWS_REGION}"
+  SUPPLY_DATABASE: "officyna_supply"
+  LABOR_DATABASE: "officyna_labor"
+  SNAPSHOT_DATABASE: "officyna_snapshot"
+  EVENT_FOR_DIAGNOSTICS_QUEUE: "eventForDiagnostics"
+  EVENT_DIAGNOSIS_QUEUE: "eventDiagnosis"
+  EVENT_DIAGNOSIS_COMPLETED_QUEUE: "eventDiagnosisCompleted"
+  EVENT_EXECUTION_STARTED_QUEUE: "eventExecutionStarted"
+  EVENT_FOR_OS_COMPLETED_QUEUE: "eventForOsCompleted"
+  APPROVAL_QUEUE: "productionApproval"

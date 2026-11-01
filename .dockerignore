@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.mvn
+target
+docs
+infra
+*.iml
+.env
+.env.*
+!.env.example
+docker-compose.yml
+mvnw
+mvnw.cmd

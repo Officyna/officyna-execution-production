@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: production-execution-service
+  labels:
+    app.kubernetes.io/name: production-execution
+    app.kubernetes.io/component: api
+  namespace: ${K8S_NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: production-execution
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: production-execution
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: production-execution-service
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: production-execution-service
+          image: ghcr.io/officyna/officyna-execution-production:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: production-execution-configmap
+            - secretRef:
+                name: production-execution-secret
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 15
+            failureThreshold: 3
