@@ -26,6 +26,17 @@ class AuthServiceTest {
     }
 
     @Test
+    void supportsIdAndNameClaimsFromAuthenticationToken() {
+        var claims = Jwts.claims(Map.of("roles", "MECHANIC", "id", "6ae7742a7ba336cf95f18102", "name", "João da Silva"));
+
+        var user = (br.com.officyna_execution_production.infrastructure.security.AuthenticatedUserDetails)
+                service.loadUserByUsername("joao.silva5@macanico.com", claims);
+
+        assertEquals("6ae7742a7ba336cf95f18102", user.getMechanicId());
+        assertEquals("João da Silva", user.getMechanicName());
+    }
+
+    @Test
     void supportsRoleClaimsAsMapsAndUsesUsernameAsNameFallback() {
         var claims = Jwts.claims(Map.of("roles", List.of(Map.of("authority", "MECHANIC", "mechanicId", "m-2"))));
 
