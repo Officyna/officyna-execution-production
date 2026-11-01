@@ -159,8 +159,10 @@ jobs:
 
           aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" >/dev/null
           QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" --query 'QueueUrl' --output text)
-          REDRIVE_POLICY=$(jq -nc --arg arn "$DLQ_ARN" '{deadLetterTargetArn: $arn, maxReceiveCount: "5"}')
-          aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "RedrivePolicy=$REDRIVE_POLICY"
+          ATTRIBUTES_FILE=$(mktemp)
+          trap 'rm -f "$ATTRIBUTES_FILE"' EXIT
+          jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
+          aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
 
       - name: Ler endpoint do DocumentDB
         id: docdb
@@ -198,12 +200,14 @@ jobs:
           DOCDB_ENDPOINT: ${{ steps.docdb.outputs.endpoint }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           MONGODB_URI="$(python3 -c 'import os, urllib.parse; print("mongodb://officynasoatdbuser:{}@{}:27017/?tls=true&replicaSet=rs0&authSource=admin&readPreference=primary&retryWrites=false".format(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""), os.environ["DOCDB_ENDPOINT"]))')"
           umask 077
           SECRET_ENV_FILE="$(mktemp)"
           trap 'rm -f "$SECRET_ENV_FILE"' EXIT
-          printf 'MONGODB_URI=%s\nJWT_SECRET=%s\n' "$MONGODB_URI" "$JWT_SECRET" > "$SECRET_ENV_FILE"
+          printf 'MONGODB_URI=%s\nJWT_SECRET=%s\nAWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\n' "$MONGODB_URI" "$JWT_SECRET" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" > "$SECRET_ENV_FILE"
           kubectl create secret generic production-execution-secret \
             --from-env-file="$SECRET_ENV_FILE" \
             --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
