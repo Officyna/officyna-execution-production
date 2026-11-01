@@ -121,6 +121,8 @@ No deploy Kubernetes, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY` são armazen
 
 Esta peça não cria nem configura cluster ou nodes. O repositório de infraestrutura mantém EKS, node groups, rede, addons compartilhados, roles e políticas IAM. Este repositório constrói/publica a imagem e aplica os recursos Kubernetes da aplicação (`Deployment`, `Service` público `LoadBalancer`, `HPA`, `ServiceAccount`, `ConfigMap` e Secrets). O workflow conecta ao cluster existente, busca o endpoint DocumentDB no SSM e faz o rollout. A AWS provisiona o endpoint público do Service durante o deploy.
 
+Cada deploy usa uma tag de imagem imutável baseada no SHA do commit. As tags `developer` e `latest` continuam disponíveis como referências, mas não são usadas para definir a versão aplicada ao Kubernetes.
+
 New Relic: agente/configuração do monólito restaurados, nome da aplicação ajustado, license key somente por ambiente. Logs JSON mantêm `message` e `correlationId`; transições e duração usam os mesmos identificadores SERVICE_ORDER_STATUS_CHANGED/SERVICE_ORDER_STATUS_DURATION. Média de labor usa dia de trabalho de **8 horas**, inicialização por estimativa e forceRecalc. Health, métricas HTTP do Actuator e filtros de correlação estão disponíveis.
 
 ## Migração e validação

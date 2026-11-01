@@ -75,7 +75,7 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+      image_tag: ${{ github.sha }}
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -93,6 +93,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ github.sha }}
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
