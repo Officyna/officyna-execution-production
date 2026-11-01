@@ -238,8 +238,9 @@ jobs:
         if: success()
         run: kubectl logs deployment/production-execution-service --namespace="$K8S_NAMESPACE" --tail=200
 
-      - name: Exibir endpoint público da aplicação
+      - name: Obter e Publicar URLs Públicas da Aplicação
         run: |
+          echo "Buscando endpoint público do Load Balancer da aplicação..."
           ENDPOINT=""
           for attempt in $(seq 1 30); do
             ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
@@ -247,12 +248,30 @@ jobs:
               ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             fi
             if [ -n "$ENDPOINT" ]; then
-              echo "Aplicação disponível em: http://$ENDPOINT"
-              exit 0
+              break
             fi
+            echo "Aguardando Load Balancer da AWS responder... (tentativa $attempt de 30)"
             sleep 10
           done
-          echo "O LoadBalancer ainda está sendo provisionado; execute kubectl get service production-execution-service --namespace=$K8S_NAMESPACE para consultar o endpoint." >&2
+
+          if [ -z "$ENDPOINT" ]; then
+            echo "⚠️ Não foi possível obter o Load Balancer a tempo."
+            echo "### ⚠️ Deploy Concluído, mas o Load Balancer ainda está em provisionamento na AWS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "=================================================="
+            echo "🎉 SERVICE URL: http://$ENDPOINT"
+            echo "📚 SWAGGER UI:  http://$ENDPOINT/swagger-ui/index.html"
+            echo "❤️  HEALTHCHECK: http://$ENDPOINT/actuator/health"
+            echo "=================================================="
+
+            echo "## 🚀 Deploy Concluído com Sucesso!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Recurso | URL Pública |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🌐 **Aplicação (Load Balancer)** | \`http://$ENDPOINT\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📚 **Swagger UI** | [Abrir Swagger](http://$ENDPOINT/swagger-ui/index.html) |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❤️ **Health Check** | [Ver Status](http://$ENDPOINT/actuator/health) |" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Diagnóstico em caso de falha
         if: failure()
