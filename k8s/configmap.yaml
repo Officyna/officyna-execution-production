@@ -23,3 +23,5 @@ data:
   EVENT_EXECUTION_STARTED_QUEUE: "eventExecutionStarted"
   EVENT_FOR_OS_COMPLETED_QUEUE: "eventForOsCompleted"
   APPROVAL_QUEUE: "productionApproval"
+  # Complementa as flags do ENTRYPOINT (MaxRAMPercentage já definido no Dockerfile)
+  JAVA_TOOL_OPTIONS: "-XX:+ExitOnOutOfMemoryError"

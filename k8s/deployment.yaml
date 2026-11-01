@@ -8,6 +8,13 @@ metadata:
   namespace: ${K8S_NAMESPACE}
 spec:
   replicas: 1
+  # Encerra o pod antigo antes de subir o novo: evita que o rollout fique
+  # travado em Pending quando o nó não tem CPU/memória para dois pods simultâneos.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: production-execution
@@ -35,11 +42,11 @@ spec:
                 name: production-execution-secret
           resources:
             requests:
-              cpu: "250m"
+              cpu: "100m"
               memory: "512Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "500m"
+              memory: "768Mi"
           startupProbe:
             httpGet:
               path: /actuator/health
