@@ -16,10 +16,11 @@ import java.util.UUID;
 @Component
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
-    private static final String CORRELATION_ID = "correlationId";
+    private static final String CORRELATION_ID = CorrelationConstants.CORRELATION_ID_KEY;
     private static final String HTTP_METHOD = "httpMethod";
     private static final String REQUEST_URI = "requestUri";
-    private static final String HEADER_NAME = "X-Correlation-ID";
+    private static final String HEADER_NAME = CorrelationConstants.CORRELATION_ID_HEADER;
+    private static final String LEGACY_HEADER_NAME = CorrelationConstants.LEGACY_CORRELATION_ID_HEADER;
 
     @Override
     protected void doFilterInternal(
@@ -29,6 +30,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String correlationId = request.getHeader(HEADER_NAME);
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = request.getHeader(LEGACY_HEADER_NAME);
+        }
 
         if (correlationId == null || correlationId.isBlank()) {
             correlationId = UUID.randomUUID().toString();
@@ -38,10 +42,15 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             MDC.put(CORRELATION_ID, correlationId);
             MDC.put(HTTP_METHOD, request.getMethod());
             MDC.put(REQUEST_URI, request.getRequestURI());
+            String authorization = request.getHeader(CorrelationConstants.AUTHORIZATION_HEADER);
+            if (authorization != null && !authorization.isBlank()) {
+                MDC.put(CorrelationConstants.AUTHORIZATION_KEY, authorization);
+            }
 
             NewRelic.addCustomParameter(CORRELATION_ID, correlationId);
 
             response.setHeader(HEADER_NAME, correlationId);
+            response.setHeader(LEGACY_HEADER_NAME, correlationId);
 
             filterChain.doFilter(request, response);
 
@@ -49,6 +58,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             MDC.remove(CORRELATION_ID);
             MDC.remove(HTTP_METHOD);
             MDC.remove(REQUEST_URI);
+            MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
         }
     }
 }
