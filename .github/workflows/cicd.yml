@@ -238,6 +238,22 @@ jobs:
         if: success()
         run: kubectl logs deployment/production-execution-service --namespace="$K8S_NAMESPACE" --tail=200
 
+      - name: Exibir endpoint público da aplicação
+        run: |
+          ENDPOINT=""
+          for attempt in $(seq 1 30); do
+            ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -z "$ENDPOINT" ]; then
+              ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            fi
+            if [ -n "$ENDPOINT" ]; then
+              echo "Aplicação disponível em: http://$ENDPOINT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "O LoadBalancer ainda está sendo provisionado; execute kubectl get service production-execution-service --namespace=$K8S_NAMESPACE para consultar o endpoint." >&2
+
       - name: Diagnóstico em caso de falha
         if: failure()
         run: |

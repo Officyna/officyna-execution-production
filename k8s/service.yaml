@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/component: api
   namespace: ${K8S_NAMESPACE}
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: production-execution
     app.kubernetes.io/component: api
