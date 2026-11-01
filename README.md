@@ -115,7 +115,7 @@ docker compose up --build
 
 Compose inicializa Mongo replica set e publica a aplicação em 8084. Para usar Mongo fora do Compose, configure replica set com hostname acessível à JVM; o hostname `mongodb` anunciado pelo Compose é destinado aos containers.
 
-As filas, tópicos, assinaturas SNS→SQS e DLQs pertencem à infraestrutura compartilhada e não são criados pelo deploy do microsserviço. Os nomes e ARNs necessários são configurados por ambiente.
+O deploy cria e configura a fila `eventForDiagnostics` e sua DLQ `eventForDiagnostics-dlq`, movendo mensagens para a DLQ após cinco tentativas. As demais filas, tópicos, assinaturas SNS→SQS e DLQs pertencem à infraestrutura compartilhada e não são criados por este microsserviço.
 
 Permissões AWS necessárias na role dos nodes EKS: SQS ReceiveMessage/DeleteMessage/ChangeMessageVisibility/GetQueueAttributes/GetQueueUrl nas filas de entrada e SQS SendMessage/GetQueueUrl nas filas de saída. A aplicação usa as credenciais temporárias dos nodes; não utiliza IRSA.
 

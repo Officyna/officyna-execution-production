@@ -116,6 +116,8 @@ jobs:
       K8S_NAMESPACE: officyna
       AWS_REGION: ${{ vars.AWS_REGION }}
       EKS_CLUSTER_NAME: eks-officyna-service
+      EVENT_FOR_DIAGNOSTICS_QUEUE: eventForDiagnostics
+      EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnostics-dlq
     permissions:
       contents: read
       packages: read
@@ -148,6 +150,17 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Garantir fila de diagnóstico e DLQ
+        run: |
+          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" >/dev/null
+          DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" --query 'QueueUrl' --output text)
+          DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+
+          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" >/dev/null
+          QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" --query 'QueueUrl' --output text)
+          REDRIVE_POLICY=$(jq -nc --arg arn "$DLQ_ARN" '{deadLetterTargetArn: $arn, maxReceiveCount: "5"}')
+          aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "RedrivePolicy=$REDRIVE_POLICY"
 
       - name: Ler endpoint do DocumentDB
         id: docdb
