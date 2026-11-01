@@ -73,7 +73,7 @@ class ServiceOrderExecutionServiceTest {
         service.startDiagnosis("os-1");
 
         verify(publisher).publish(eq("eventDiagnosis"),
-                eq(new DiagnosisStartedEvent("os-1", ServiceOrderStatus.EM_DIAGNOSTICO, "mechanic-1", "Ana Silva")),
+                eq(new DiagnosisStartedEvent("os-1", "mechanic-1", "Ana Silva")),
                 eq("corr-1"));
     }
 

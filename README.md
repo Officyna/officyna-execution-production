@@ -70,7 +70,7 @@ O status de aprovação não contém decisões de labor nem itens de supply; ess
 
 Contratos de saída:
 
-- `eventDiagnosis`: atributo SQS `correlationId`; corpo somente `serviceOrderId`, `status`, `mechanicId` e `mechanicName`.
+- `eventDiagnosis`: atributo SQS `correlationId`; corpo somente `serviceOrderId`, `mechanicId` e `mechanicName`.
 - `eventDiagnosisCompleted`: atributo SQS `correlationId`; corpo somente `serviceOrderId`.
 - `eventExecutionStarted` e `eventForOsCompleted`: atributo SQS `correlationId`; corpo `serviceOrderId` e `status`.
 

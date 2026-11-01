@@ -223,10 +223,13 @@ jobs:
             --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aplicar Deployment, Service e HPA
-        env:
-          IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
         run: |
+          # Usa a tag imutável do commit (sha-xxxxxxx, gerada pelo metadata-action com type=sha).
+          # Tags fixas como "developer" não alteram o manifesto e o Kubernetes não dispara rollout.
+          export IMAGE_TAG="sha-${GITHUB_SHA::7}"
+          echo "Imagem a ser implantada: ${IMAGE_NAME}:${IMAGE_TAG}"
           envsubst '${K8S_NAMESPACE} ${IMAGE_NAME} ${IMAGE_TAG}' < k8s/deployment.yaml | kubectl apply -f -
+          kubectl rollout restart deployment/production-execution-service --namespace="$K8S_NAMESPACE"
           envsubst '${K8S_NAMESPACE}' < k8s/service.yaml | kubectl apply -f -
           envsubst '${K8S_NAMESPACE}' < k8s/hpa.yaml | kubectl apply -f -
 

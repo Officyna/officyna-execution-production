@@ -116,7 +116,7 @@ public class ServiceOrderExecutionService {
         serviceOrder.setMechanicId(mechanic.getMechanicId());
         serviceOrder.setMechanicName(mechanic.getMechanicName());
         save(serviceOrder);
-        executionPublisher.publish("eventDiagnosis", new DiagnosisStartedEvent(serviceOrderId, ServiceOrderStatus.EM_DIAGNOSTICO,
+        executionPublisher.publish("eventDiagnosis", new DiagnosisStartedEvent(serviceOrderId,
                 mechanic.getMechanicId(), mechanic.getMechanicName()), serviceOrder.getCorrelationId());
     }
 
