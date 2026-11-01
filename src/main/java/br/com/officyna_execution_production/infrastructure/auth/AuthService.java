@@ -23,8 +23,10 @@ public class AuthService {
                 .toList();
 
         return new AuthenticatedUserDetails(username, authorities,
-                claim(claims.get("mechanicId"), roleClaim(roles, "mechanicId")),
-                first(claims.get("mechanicName"), roleClaim(roles, "mechanicName"), username));
+                claim(firstPresent(claims.get("mechanicId"), claims.get("id")),
+                        firstPresent(roleClaim(roles, "mechanicId"), roleClaim(roles, "id"))),
+                first(firstPresent(claims.get("mechanicName"), claims.get("name")),
+                        firstPresent(roleClaim(roles, "mechanicName"), roleClaim(roles, "name")), username));
     }
 
     private List<String> authorityNames(Object roles) {
@@ -65,5 +67,12 @@ public class AuthService {
     private String first(Object direct, Object nested, String fallback) {
         String value = claim(direct, nested);
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private Object firstPresent(Object... values) {
+        for (Object value : values) {
+            if (value != null && !value.toString().isBlank()) return value;
+        }
+        return null;
     }
 }
