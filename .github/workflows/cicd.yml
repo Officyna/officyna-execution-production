@@ -116,7 +116,6 @@ jobs:
       K8S_NAMESPACE: officyna
       AWS_REGION: ${{ vars.AWS_REGION }}
       EKS_CLUSTER_NAME: eks-officyna-service
-      PRODUCTION_EXECUTION_ROLE_ARN: ${{ vars.PRODUCTION_EXECUTION_ROLE_ARN }}
     permissions:
       contents: read
       packages: read
@@ -135,7 +134,7 @@ jobs:
         run: |
           for variable_name in \
             AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EKS_CLUSTER_NAME \
-            K8S_NAMESPACE PRODUCTION_EXECUTION_ROLE_ARN DB_PASSWORD \
+            K8S_NAMESPACE DB_PASSWORD \
             JWT_SECRET GHCR_USERNAME GHCR_PAT; do
             if [ -z "${!variable_name}" ]; then
               echo "Configuração obrigatória ausente: $variable_name" >&2
@@ -174,7 +173,7 @@ jobs:
         run: kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aplicar ServiceAccount da aplicação
-        run: envsubst '${K8S_NAMESPACE} ${PRODUCTION_EXECUTION_ROLE_ARN}' < k8s/service-account.yaml | kubectl apply -f -
+        run: envsubst '${K8S_NAMESPACE}' < k8s/service-account.yaml | kubectl apply -f -
 
       - name: Aplicar ConfigMap
         run: |
