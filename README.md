@@ -117,7 +117,7 @@ Compose inicializa Mongo replica set e publica a aplicação em 8084. Para usar 
 
 As filas, tópicos, assinaturas SNS→SQS e DLQs pertencem à infraestrutura compartilhada e não são criados pelo deploy do microsserviço. Os nomes e ARNs necessários são configurados por ambiente.
 
-Permissões da role IRSA da aplicação: SQS ReceiveMessage/DeleteMessage/ChangeMessageVisibility/GetQueueAttributes/GetQueueUrl nas filas de entrada e SQS SendMessage/GetQueueUrl nas filas de saída. A role, o OIDC provider e a associação do principal de deploy ao EKS pertencem ao repositório de infraestrutura.
+Permissões AWS necessárias na role dos nodes EKS: SQS ReceiveMessage/DeleteMessage/ChangeMessageVisibility/GetQueueAttributes/GetQueueUrl nas filas de entrada e SQS SendMessage/GetQueueUrl nas filas de saída. A aplicação usa as credenciais temporárias dos nodes; não utiliza IRSA.
 
 Esta peça não cria nem configura cluster ou nodes. O repositório de infraestrutura mantém EKS, node groups, rede, addons compartilhados, roles e políticas IAM. Este repositório constrói/publica a imagem e aplica somente os recursos Kubernetes da aplicação (`Deployment`, `Service` interno `ClusterIP`, `HPA`, `ServiceAccount`, `ConfigMap` e Secrets). O workflow conecta ao cluster existente, busca o endpoint DocumentDB no SSM e faz o rollout, seguindo o fluxo de build, imagem e deploy do `officyna-service`. O `Service` permanece `ClusterIP` para tráfego interno/gateway; a exposição externa e a rota para esta API devem ser providas pelo gateway da infraestrutura. Consulte [`docs/INFRA_EKS.md`](docs/INFRA_EKS.md) para a divisão de responsabilidades e as variáveis necessárias.
 
