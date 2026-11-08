@@ -152,7 +152,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Garantir fila de diagnóstico e DLQ
+      - name: Garantir fila de diagnóstico, DLQ e inscrição no tópico SNS topicAprovacao
         run: |
           aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" >/dev/null
           DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" --query 'QueueUrl' --output text)
@@ -164,6 +164,36 @@ jobs:
           trap 'rm -f "$ATTRIBUTES_FILE"' EXIT
           jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
           aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
+
+          APPROVAL_QUEUE_NAME="productionApproval"
+          TOPIC_NAME="topicAprovacao"
+          aws sqs create-queue --queue-name "$APPROVAL_QUEUE_NAME" >/dev/null
+          APPROVAL_QUEUE_URL=$(aws sqs get-queue-url --queue-name "$APPROVAL_QUEUE_NAME" --query 'QueueUrl' --output text)
+          APPROVAL_QUEUE_ARN=$(aws sqs get-queue-attributes --queue-url "$APPROVAL_QUEUE_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          if TOPIC_ARN=$(aws sns create-topic --name "$TOPIC_NAME" --query 'TopicArn' --output text 2>/dev/null); then
+            POLICY_FILE=$(mktemp)
+            jq -nc --arg qarn "$APPROVAL_QUEUE_ARN" --arg tarn "$TOPIC_ARN" '{
+              Policy: ({
+                Version: "2012-10-17",
+                Statement: [{
+                  Sid: "AllowSnsTopicAprovacao",
+                  Effect: "Allow",
+                  Principal: { Service: "sns.amazonaws.com" },
+                  Action: "sqs:SendMessage",
+                  Resource: $qarn,
+                  Condition: { ArnEquals: { "aws:SourceArn": $tarn } }
+                }]
+              } | tojson)
+            }' > "$POLICY_FILE"
+            aws sqs set-queue-attributes --queue-url "$APPROVAL_QUEUE_URL" --attributes "file://$POLICY_FILE" || true
+            rm -f "$POLICY_FILE"
+
+            aws sns subscribe \
+              --topic-arn "$TOPIC_ARN" \
+              --protocol sqs \
+              --notification-endpoint "$APPROVAL_QUEUE_ARN" \
+              --attributes RawMessageDelivery=true >/dev/null || true
+          fi
 
       - name: Ler endpoint do DocumentDB
         id: docdb

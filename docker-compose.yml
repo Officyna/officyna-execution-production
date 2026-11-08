@@ -59,7 +59,7 @@ services:
       EVENT_DIAGNOSIS_QUEUE: ${EVENT_DIAGNOSIS_QUEUE:-eventDiagnosis}
       EVENT_EXECUTION_STARTED_QUEUE: ${EVENT_EXECUTION_STARTED_QUEUE:-eventExecutionStarted}
       EVENT_FOR_OS_COMPLETED_QUEUE: ${EVENT_FOR_OS_COMPLETED_QUEUE:-eventForOsCompleted}
-      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-topicAprovacao}
+      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-productionApproval}
       EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:-eventDiagnosisCompleted}
       NEW_RELIC_APP_NAME: production-execution-service
     healthcheck:
