@@ -118,7 +118,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       EKS_CLUSTER_NAME: eks-officyna-service
       EVENT_FOR_DIAGNOSTICS_QUEUE: eventForDiagnostics
-      EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnostics-dlq
+      EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnosticsDlq
     permissions:
       contents: read
       packages: read
@@ -152,18 +152,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Garantir fila de diagnóstico, DLQ e inscrição no tópico SNS topicAprovacao
+      - name: Garantir filas SQS, DLQs de compensação SAGA e inscrição no tópico SNS topicAprovacao
         run: |
-          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" >/dev/null
-          DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" --query 'QueueUrl' --output text)
-          DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          for QUEUE in "$EVENT_FOR_DIAGNOSTICS_QUEUE" "eventDiagnosis" "eventDiagnosisCompleted"; do
+            DLQ="${QUEUE}Dlq"
+            aws sqs create-queue --queue-name "$DLQ" >/dev/null
+            DLQ_URL=$(aws sqs get-queue-url --queue-name "$DLQ" --query 'QueueUrl' --output text)
+            DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
 
-          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" >/dev/null
-          QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" --query 'QueueUrl' --output text)
-          ATTRIBUTES_FILE=$(mktemp)
-          trap 'rm -f "$ATTRIBUTES_FILE"' EXIT
-          jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
-          aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
+            aws sqs create-queue --queue-name "$QUEUE" >/dev/null
+            QUEUE_URL=$(aws sqs get-queue-url --queue-name "$QUEUE" --query 'QueueUrl' --output text)
+            ATTRIBUTES_FILE=$(mktemp)
+            jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
+            aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
+            rm -f "$ATTRIBUTES_FILE"
+          done
+
+          for EXTRA_QUEUE in "eventExecutionStarted" "eventForOsCompleted" "eventServiceOrderRecused"; do
+            aws sqs create-queue --queue-name "$EXTRA_QUEUE" >/dev/null
+          done
 
           APPROVAL_QUEUE_NAME="productionApproval"
           TOPIC_NAME="topicAprovacao"
