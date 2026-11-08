@@ -194,13 +194,12 @@ public class ServiceOrderExecutionService {
     }
 
     private ServiceOrderStatus parsePaymentDecision(String statusPayment) {
-        if (statusPayment == null) return null;
-        try {
-            ServiceOrderStatus decision = ServiceOrderStatus.valueOf(statusPayment.trim().toUpperCase(Locale.ROOT));
-            return decision == ServiceOrderStatus.APROVADA || decision == ServiceOrderStatus.RECUSADA ? decision : null;
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
+        if (statusPayment == null || statusPayment.isBlank()) return null;
+        return switch (statusPayment.trim().toUpperCase(Locale.ROOT)) {
+            case "APROVADA", "APROVADO", "APROVED", "APPROVED", "PAID" -> ServiceOrderStatus.APROVADA;
+            case "RECUSADA", "RECUSADO", "RECUSED", "REJECTED", "CANCELED", "CANCELLED", "REFUNDED", "FAILED" -> ServiceOrderStatus.RECUSADA;
+            default -> null;
+        };
     }
 
     private boolean hasAlreadyProcessedBillingDecision(ExecutionWork serviceOrder, ServiceOrderStatus decision) {

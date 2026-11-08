@@ -174,6 +174,54 @@ class ServiceOrderExecutionServiceTest {
     }
 
     @Test
+    void acceptsOrderPaidEventAndAllCompatibleApprovalAndRefusalStatuses() throws Exception {
+        var mapper = new ObjectMapper();
+        String nestedPaidJson = """
+                {
+                  "serviceOrderId": "os-paid",
+                  "payment": {
+                    "paymentId": "ORDTST01M6YCTYAHXDMGH7H51EZ14G4Q",
+                    "status": "PAID",
+                    "paymentMethod": "PIX",
+                    "totalPaidAmount": 133.66,
+                    "paidAt": "2026-11-08T20:20:24.690576569Z"
+                  }
+                }
+                """;
+        var paidWork = order("os-paid", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findByServiceOrderId("os-paid")).thenReturn(Optional.of(paidWork));
+        var paidEvent = mapper.readValue(nestedPaidJson, br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent.class);
+        service.receiveBillingDecision(paidEvent, "corr-paid");
+        assertEquals(ServiceOrderStatus.APROVADA, paidWork.getStatus());
+
+        String snsEnvelopeJson = """
+                {
+                  "Type": "Notification",
+                  "Message": "{\\"serviceOrderOd\\":\\"os-sns\\",\\"statusPayment\\":\\"APROVED\\"}"
+                }
+                """;
+        var snsWork = order("os-sns", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findByServiceOrderId("os-sns")).thenReturn(Optional.of(snsWork));
+        var snsEvent = mapper.readValue(snsEnvelopeJson, br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent.class);
+        service.receiveBillingDecision(snsEvent, "corr-sns");
+        assertEquals(ServiceOrderStatus.APROVADA, snsWork.getStatus());
+
+        for (String status : List.of("APPROVED", "APROVADO")) {
+            var work = order("os-" + status, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+            when(repository.findByServiceOrderId("os-" + status)).thenReturn(Optional.of(work));
+            service.receiveBillingDecision(new br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent("os-" + status, status), "corr");
+            assertEquals(ServiceOrderStatus.APROVADA, work.getStatus());
+        }
+
+        for (String status : List.of("RECUSED", "RECUSADO", "REJECTED", "CANCELED", "CANCELLED", "REFUNDED", "FAILED")) {
+            var work = order("os-" + status, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+            when(repository.findByServiceOrderId("os-" + status)).thenReturn(Optional.of(work));
+            service.receiveBillingDecision(new br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent("os-" + status, status), "corr");
+            assertEquals(ServiceOrderStatus.RECUSADA, work.getStatus());
+        }
+    }
+
+    @Test
     void refusedBillingDecisionReleasesReservedStockAndIsIdempotent() {
         var work = order("os-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
         work.setStockReserved(true);
