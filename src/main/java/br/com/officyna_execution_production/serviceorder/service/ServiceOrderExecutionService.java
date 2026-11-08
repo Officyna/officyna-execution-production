@@ -6,7 +6,9 @@ import br.com.officyna_execution_production.serviceorder.domain.enums.*;
 import br.com.officyna_execution_production.serviceorder.domain.exception.*;
 import br.com.officyna_execution_production.serviceorder.event.*;
 import br.com.officyna_execution_production.serviceorder.domain.repository.ExecutionWorkRepository;
+import br.com.officyna_execution_production.administrative.supply.domain.entity.Supply;
 import br.com.officyna_execution_production.administrative.supply.domain.service.StockService;
+import br.com.officyna_execution_production.administrative.supply.domain.service.SupplyService;
 import br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import br.com.officyna_execution_production.monitoring.domain.service.LaborMonitoringService;
@@ -29,6 +31,7 @@ import java.util.*;
 public class ServiceOrderExecutionService {
     private final ExecutionWorkRepository executionRepository;
     private final StockService stockService;
+    private final SupplyService supplyService;
     private final ExecutionPublisher executionPublisher;
     private final OsServiceClient osServiceClient;
     private final LaborMonitoringService laborMonitoringService;
@@ -132,7 +135,16 @@ public class ServiceOrderExecutionService {
 
     public JsonNode addSupply(String serviceOrderId, AddSupplyRequest request, String token) {
         findByServiceOrderId(serviceOrderId);
-        return osServiceClient.addSupply(serviceOrderId, request.supplyId(), request.quantity(), token);
+        Supply supply = supplyService.findById(request.supplyId());
+        return osServiceClient.addSupply(
+                serviceOrderId,
+                supply.getId(),
+                request.quantity(),
+                supply.getName(),
+                supply.getDescription(),
+                supply.getSalePrice(),
+                token
+        );
     }
 
     public JsonNode removeSupply(String serviceOrderId, String supplyId, String token) {

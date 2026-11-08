@@ -138,4 +138,31 @@ class OsServiceClientTest {
     void findServiceOrder_ThrowsWhenNoToken() {
         assertThrows(IllegalArgumentException.class, () -> osServiceClient.findServiceOrder("os-500", null));
     }
+
+    @Test
+    @DisplayName("Deve enviar id, quantity, name, description e unitPrice ao adicionar suprimento")
+    void addSupply_SendsCompleteSupplyPayload() {
+        String expectedRequest = "[{\"id\":\"supply-1\",\"quantity\":2,\"name\":\"Filtro de Óleo\",\"description\":\"Filtro sintético\",\"unitPrice\":100.00}]";
+        String responseJson = "{\"id\":\"os-100\"}";
+
+        mockServer.expect(requestTo("http://localhost:8080/api/serviceorder/os-100/add-supply"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer explicit-token"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content().json(expectedRequest))
+                .andRespond(withSuccess(responseJson, MediaType.APPLICATION_JSON));
+
+        JsonNode result = osServiceClient.addSupply(
+                "os-100",
+                "supply-1",
+                2,
+                "Filtro de Óleo",
+                "Filtro sintético",
+                new java.math.BigDecimal("100.00"),
+                "explicit-token"
+        );
+
+        assertNotNull(result);
+        assertEquals("os-100", result.path("id").asText());
+        mockServer.verify();
+    }
 }

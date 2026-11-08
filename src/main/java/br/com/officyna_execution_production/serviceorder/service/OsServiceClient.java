@@ -20,8 +20,10 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -135,9 +137,15 @@ public class OsServiceClient {
         return parseJson(response);
     }
 
-    public JsonNode addSupply(String serviceOrderId, String supplyId, int quantity, String token) {
+    public JsonNode addSupply(String serviceOrderId, String supplyId, int quantity, String name, String description, BigDecimal unitPrice, String token) {
+        Map<String, Object> supplyPayload = new LinkedHashMap<>();
+        supplyPayload.put("id", supplyId);
+        supplyPayload.put("quantity", quantity);
+        supplyPayload.put("name", name);
+        supplyPayload.put("description", description);
+        supplyPayload.put("unitPrice", unitPrice);
         return addItemsWithPatchCompatibility("/api/serviceorder/{id}/add-supply", serviceOrderId,
-                List.of(Map.of("id", supplyId, "quantity", quantity)), token);
+                List.of(supplyPayload), token);
     }
 
     private JsonNode addItemsWithPatchCompatibility(String path, String serviceOrderId, Object body, String token) {
