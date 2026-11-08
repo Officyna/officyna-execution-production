@@ -1,6 +1,8 @@
 package br.com.officyna_execution_production.serviceorder;
 
+import br.com.officyna_execution_production.administrative.supply.domain.entity.Supply;
 import br.com.officyna_execution_production.administrative.supply.domain.service.StockService;
+import br.com.officyna_execution_production.administrative.supply.domain.service.SupplyService;
 import br.com.officyna_execution_production.monitoring.domain.service.LaborMonitoringService;
 import br.com.officyna_execution_production.infrastructure.security.AuthenticatedUserDetails;
 import br.com.officyna_execution_production.serviceorder.domain.entity.ExecutionWork;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.*;
 class ServiceOrderExecutionServiceTest {
     private ExecutionWorkRepository repository;
     private StockService stockService;
+    private SupplyService supplyService;
     private ExecutionPublisher publisher;
     private OsServiceClient osServiceClient;
     private ServiceOrderExecutionService service;
@@ -41,9 +44,10 @@ class ServiceOrderExecutionServiceTest {
     void setUp() {
         repository = mock(ExecutionWorkRepository.class);
         stockService = mock(StockService.class);
+        supplyService = mock(SupplyService.class);
         publisher = mock(ExecutionPublisher.class);
         osServiceClient = mock(OsServiceClient.class);
-        service = new ServiceOrderExecutionService(repository, stockService, publisher, osServiceClient,
+        service = new ServiceOrderExecutionService(repository, stockService, supplyService, publisher, osServiceClient,
                 mock(LaborMonitoringService.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -135,10 +139,18 @@ class ServiceOrderExecutionServiceTest {
     void delegatesOrderEditingOperationsToOsService() throws Exception {
         var work = order("os-1", ServiceOrderStatus.EM_DIAGNOSTICO);
         when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
+        var supply = Supply.builder()
+                .id("supply-1")
+                .name("Filtro de Óleo")
+                .description("Filtro sintético")
+                .salePrice(new java.math.BigDecimal("100.00"))
+                .build();
+        when(supplyService.findById("supply-1")).thenReturn(supply);
         var json = new ObjectMapper().readTree("{\"ok\":true}");
         when(osServiceClient.addLabor(anyString(), anyString(), anyString())).thenReturn(json);
         when(osServiceClient.removeLabor(anyString(), anyString(), anyString())).thenReturn(json);
-        when(osServiceClient.addSupply(anyString(), anyString(), anyInt(), anyString())).thenReturn(json);
+        when(osServiceClient.addSupply(eq("os-1"), eq("supply-1"), eq(2), eq("Filtro de Óleo"),
+                eq("Filtro sintético"), eq(new java.math.BigDecimal("100.00")), eq("token"))).thenReturn(json);
         when(osServiceClient.removeSupply(anyString(), anyString(), anyString())).thenReturn(json);
         when(osServiceClient.updateInformation(anyString(), anyString(), anyString())).thenReturn(json);
 
@@ -263,7 +275,7 @@ class ServiceOrderExecutionServiceTest {
     void finishingLaborRegistersMonitoringWhenTheOsReturnsItsTimes() throws Exception {
         var work = order("os-1", ServiceOrderStatus.EM_EXECUCAO);
         var monitoring = mock(LaborMonitoringService.class);
-        service = new ServiceOrderExecutionService(repository, stockService, publisher, osServiceClient, monitoring);
+        service = new ServiceOrderExecutionService(repository, stockService, supplyService, publisher, osServiceClient, monitoring);
         when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
         var response = new ObjectMapper().readTree("{\"ok\":true}");
         var start = LocalDateTime.of(2026, 1, 1, 8, 0);
