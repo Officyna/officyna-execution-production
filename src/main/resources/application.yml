@@ -38,8 +38,12 @@ logging:
 aws:
   sqs:
     event-for-diagnostics: ${EVENT_FOR_DIAGNOSTICS_QUEUE:eventForDiagnostics}
+    event-for-diagnostics-dlq: ${EVENT_FOR_DIAGNOSTICS_DLQ:eventForDiagnosticsDlq}
     event-diagnosis: ${EVENT_DIAGNOSIS_QUEUE:eventDiagnosis}
+    event-diagnosis-dlq: ${EVENT_DIAGNOSIS_DLQ_QUEUE:eventDiagnosisDlq}
     event-diagnosis-completed: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:eventDiagnosisCompleted}
+    event-diagnosis-completed-dlq: ${EVENT_DIAGNOSIS_COMPLETED_DLQ_QUEUE:eventDiagnosisCompletedDlq}
     event-execution-started: ${EVENT_EXECUTION_STARTED_QUEUE:eventExecutionStarted}
     event-for-os-completed: ${EVENT_FOR_OS_COMPLETED_QUEUE:eventForOsCompleted}
+    event-service-order-recused: ${EVENT_SERVICE_ORDER_RECUSED_QUEUE:eventServiceOrderRecused}
     approval-queue: ${APPROVAL_QUEUE:productionApproval}
