@@ -268,10 +268,13 @@ jobs:
             --namespace="$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aplicar Deployment, Service e HPA
-        env:
-          IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
         run: |
+          # Usa a tag imutável do commit (sha-xxxxxxx, gerada pelo metadata-action com type=sha).
+          # Tags fixas como "developer" não alteram o manifesto e o Kubernetes não dispara rollout.
+          export IMAGE_TAG="sha-${GITHUB_SHA::7}"
+          echo "Imagem a ser implantada: ${IMAGE_NAME}:${IMAGE_TAG}"
           envsubst '${K8S_NAMESPACE} ${IMAGE_NAME} ${IMAGE_TAG}' < k8s/deployment.yaml | kubectl apply -f -
+          kubectl rollout restart deployment/production-execution-service --namespace="$K8S_NAMESPACE"
           envsubst '${K8S_NAMESPACE}' < k8s/service.yaml | kubectl apply -f -
           envsubst '${K8S_NAMESPACE}' < k8s/hpa.yaml | kubectl apply -f -
 
@@ -284,8 +287,9 @@ jobs:
         if: success()
         run: kubectl logs deployment/production-execution-service --namespace="$K8S_NAMESPACE" --tail=200
 
-      - name: Exibir endpoint público da aplicação
+      - name: Obter e Publicar URLs Públicas da Aplicação
         run: |
+          echo "Buscando endpoint público do Load Balancer da aplicação..."
           ENDPOINT=""
           for attempt in $(seq 1 30); do
             ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
@@ -293,12 +297,30 @@ jobs:
               ENDPOINT=$(kubectl get service production-execution-service --namespace="$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             fi
             if [ -n "$ENDPOINT" ]; then
-              echo "Aplicação disponível em: http://$ENDPOINT"
-              exit 0
+              break
             fi
+            echo "Aguardando Load Balancer da AWS responder... (tentativa $attempt de 30)"
             sleep 10
           done
-          echo "O LoadBalancer ainda está sendo provisionado; execute kubectl get service production-execution-service --namespace=$K8S_NAMESPACE para consultar o endpoint." >&2
+
+          if [ -z "$ENDPOINT" ]; then
+            echo "⚠️ Não foi possível obter o Load Balancer a tempo."
+            echo "### ⚠️ Deploy Concluído, mas o Load Balancer ainda está em provisionamento na AWS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "=================================================="
+            echo "🎉 SERVICE URL: http://$ENDPOINT"
+            echo "📚 SWAGGER UI:  http://$ENDPOINT/swagger-ui/index.html"
+            echo "❤️  HEALTHCHECK: http://$ENDPOINT/actuator/health"
+            echo "=================================================="
+
+            echo "## 🚀 Deploy Concluído com Sucesso!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Recurso | URL Pública |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🌐 **Aplicação (Load Balancer)** | \`http://$ENDPOINT\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📚 **Swagger UI** | [Abrir Swagger](http://$ENDPOINT/swagger-ui/index.html) |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❤️ **Health Check** | [Ver Status](http://$ENDPOINT/actuator/health) |" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Diagnóstico em caso de falha
         if: failure()
