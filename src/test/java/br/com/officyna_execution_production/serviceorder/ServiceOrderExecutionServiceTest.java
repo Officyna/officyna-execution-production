@@ -1,6 +1,8 @@
 package br.com.officyna_execution_production.serviceorder;
 
+import br.com.officyna_execution_production.administrative.supply.domain.entity.Supply;
 import br.com.officyna_execution_production.administrative.supply.domain.service.StockService;
+import br.com.officyna_execution_production.administrative.supply.domain.service.SupplyService;
 import br.com.officyna_execution_production.monitoring.domain.service.LaborMonitoringService;
 import br.com.officyna_execution_production.infrastructure.security.AuthenticatedUserDetails;
 import br.com.officyna_execution_production.serviceorder.domain.entity.ExecutionWork;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.*;
 class ServiceOrderExecutionServiceTest {
     private ExecutionWorkRepository repository;
     private StockService stockService;
+    private SupplyService supplyService;
     private ExecutionPublisher publisher;
     private OsServiceClient osServiceClient;
     private ServiceOrderExecutionService service;
@@ -41,9 +44,10 @@ class ServiceOrderExecutionServiceTest {
     void setUp() {
         repository = mock(ExecutionWorkRepository.class);
         stockService = mock(StockService.class);
+        supplyService = mock(SupplyService.class);
         publisher = mock(ExecutionPublisher.class);
         osServiceClient = mock(OsServiceClient.class);
-        service = new ServiceOrderExecutionService(repository, stockService, publisher, osServiceClient,
+        service = new ServiceOrderExecutionService(repository, stockService, supplyService, publisher, osServiceClient,
                 mock(LaborMonitoringService.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -135,10 +139,18 @@ class ServiceOrderExecutionServiceTest {
     void delegatesOrderEditingOperationsToOsService() throws Exception {
         var work = order("os-1", ServiceOrderStatus.EM_DIAGNOSTICO);
         when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
+        var supply = Supply.builder()
+                .id("supply-1")
+                .name("Filtro de Óleo")
+                .description("Filtro sintético")
+                .salePrice(new java.math.BigDecimal("100.00"))
+                .build();
+        when(supplyService.findById("supply-1")).thenReturn(supply);
         var json = new ObjectMapper().readTree("{\"ok\":true}");
         when(osServiceClient.addLabor(anyString(), anyString(), anyString())).thenReturn(json);
         when(osServiceClient.removeLabor(anyString(), anyString(), anyString())).thenReturn(json);
-        when(osServiceClient.addSupply(anyString(), anyString(), anyInt(), anyString())).thenReturn(json);
+        when(osServiceClient.addSupply(eq("os-1"), eq("supply-1"), eq(2), eq("Filtro de Óleo"),
+                eq("Filtro sintético"), eq(new java.math.BigDecimal("100.00")), eq("token"))).thenReturn(json);
         when(osServiceClient.removeSupply(anyString(), anyString(), anyString())).thenReturn(json);
         when(osServiceClient.updateInformation(anyString(), anyString(), anyString())).thenReturn(json);
 
@@ -159,6 +171,54 @@ class ServiceOrderExecutionServiceTest {
         assertEquals(ServiceOrderStatus.APROVADA, work.getStatus());
         assertEquals("corr-new", work.getCorrelationId());
         verify(repository).save(work);
+    }
+
+    @Test
+    void acceptsOrderPaidEventAndAllCompatibleApprovalAndRefusalStatuses() throws Exception {
+        var mapper = new ObjectMapper();
+        String nestedPaidJson = """
+                {
+                  "serviceOrderId": "os-paid",
+                  "payment": {
+                    "paymentId": "ORDTST01M6YCTYAHXDMGH7H51EZ14G4Q",
+                    "status": "PAID",
+                    "paymentMethod": "PIX",
+                    "totalPaidAmount": 133.66,
+                    "paidAt": "2026-11-08T20:20:24.690576569Z"
+                  }
+                }
+                """;
+        var paidWork = order("os-paid", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findByServiceOrderId("os-paid")).thenReturn(Optional.of(paidWork));
+        var paidEvent = mapper.readValue(nestedPaidJson, br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent.class);
+        service.receiveBillingDecision(paidEvent, "corr-paid");
+        assertEquals(ServiceOrderStatus.APROVADA, paidWork.getStatus());
+
+        String snsEnvelopeJson = """
+                {
+                  "Type": "Notification",
+                  "Message": "{\\"serviceOrderOd\\":\\"os-sns\\",\\"statusPayment\\":\\"APROVED\\"}"
+                }
+                """;
+        var snsWork = order("os-sns", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findByServiceOrderId("os-sns")).thenReturn(Optional.of(snsWork));
+        var snsEvent = mapper.readValue(snsEnvelopeJson, br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent.class);
+        service.receiveBillingDecision(snsEvent, "corr-sns");
+        assertEquals(ServiceOrderStatus.APROVADA, snsWork.getStatus());
+
+        for (String status : List.of("APPROVED", "APROVADO")) {
+            var work = order("os-" + status, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+            when(repository.findByServiceOrderId("os-" + status)).thenReturn(Optional.of(work));
+            service.receiveBillingDecision(new br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent("os-" + status, status), "corr");
+            assertEquals(ServiceOrderStatus.APROVADA, work.getStatus());
+        }
+
+        for (String status : List.of("RECUSED", "RECUSADO", "REJECTED", "CANCELED", "CANCELLED", "REFUNDED", "FAILED")) {
+            var work = order("os-" + status, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+            when(repository.findByServiceOrderId("os-" + status)).thenReturn(Optional.of(work));
+            service.receiveBillingDecision(new br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent("os-" + status, status), "corr");
+            assertEquals(ServiceOrderStatus.RECUSADA, work.getStatus());
+        }
     }
 
     @Test
@@ -263,7 +323,7 @@ class ServiceOrderExecutionServiceTest {
     void finishingLaborRegistersMonitoringWhenTheOsReturnsItsTimes() throws Exception {
         var work = order("os-1", ServiceOrderStatus.EM_EXECUCAO);
         var monitoring = mock(LaborMonitoringService.class);
-        service = new ServiceOrderExecutionService(repository, stockService, publisher, osServiceClient, monitoring);
+        service = new ServiceOrderExecutionService(repository, stockService, supplyService, publisher, osServiceClient, monitoring);
         when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
         var response = new ObjectMapper().readTree("{\"ok\":true}");
         var start = LocalDateTime.of(2026, 1, 1, 8, 0);
@@ -274,6 +334,116 @@ class ServiceOrderExecutionServiceTest {
         service.finishLabor("os-1", "labor-1", "token");
 
         verify(monitoring).registerExecution("os-1", "labor-1", start, start.plusHours(2));
+    }
+
+    @Test
+    void compensatesDiagnosisFailureAndRestoresReceivedState() {
+        var registrationDate = LocalDateTime.now().minusMinutes(10);
+        var work = order("os-1", ServiceOrderStatus.EM_DIAGNOSTICO);
+        work.setRegistrationDate(registrationDate);
+        work.setDiagnosisStartDate(LocalDateTime.now().minusMinutes(5));
+        work.setMechanicId("mechanic-1");
+        work.setMechanicName("Ana Silva");
+        when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
+
+        service.compensateDiagnosisFailure(new DiagnosisStartedEvent("os-1", "mechanic-1", "Ana Silva"), "corr-dlq");
+        service.compensateDiagnosisFailure(new DiagnosisStartedEvent("os-1", "mechanic-1", "Ana Silva"), "corr-dlq");
+
+        assertEquals(ServiceOrderStatus.RECEBIDA, work.getStatus());
+        assertEquals(registrationDate, work.getRegistrationDate());
+        assertNull(work.getDiagnosisStartDate());
+        assertNull(work.getMechanicId());
+        assertNull(work.getMechanicName());
+        assertEquals("corr-dlq", work.getCorrelationId());
+        verify(repository, times(1)).save(work);
+
+        assertThrows(Exception.class, () -> service.compensateDiagnosisFailure(null, "corr"));
+        var invalidWork = order("os-2", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findByServiceOrderId("os-2")).thenReturn(Optional.of(invalidWork));
+        assertThrows(Exception.class, () -> service.compensateDiagnosisFailure(
+                new DiagnosisStartedEvent("os-2", "mechanic-1", "Ana Silva"), "corr"));
+    }
+
+    @Test
+    void compensatesDiagnosisCompletedFailureReleasesStockAndRestoresDiagnosisState() {
+        var diagnosisStartDate = LocalDateTime.now().minusMinutes(15);
+        var work = order("os-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        work.setDiagnosisStartDate(diagnosisStartDate);
+        work.setClientSendDate(LocalDateTime.now().minusMinutes(5));
+        var items = List.of(new br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest("supply-1", 2));
+        work.setStockReservationItems(items);
+        work.setStockReserved(true);
+        when(repository.findByServiceOrderId("os-1")).thenReturn(Optional.of(work));
+
+        service.compensateDiagnosisCompletedFailure(new ServiceOrderIdEvent("os-1"), "corr-dlq");
+        service.compensateDiagnosisCompletedFailure(new ServiceOrderIdEvent("os-1"), "corr-dlq");
+
+        verify(stockService, times(1)).releaseSupplies("os-1", items);
+        assertFalse(work.isStockReserved());
+        assertTrue(work.getStockReservationItems().isEmpty());
+        assertEquals(ServiceOrderStatus.EM_DIAGNOSTICO, work.getStatus());
+        assertEquals(diagnosisStartDate, work.getDiagnosisStartDate());
+        assertNull(work.getClientSendDate());
+        assertEquals("corr-dlq", work.getCorrelationId());
+        verify(repository, times(1)).save(work);
+
+        assertThrows(Exception.class, () -> service.compensateDiagnosisCompletedFailure(null, "corr"));
+        var invalidWork = order("os-2", ServiceOrderStatus.RECEBIDA);
+        when(repository.findByServiceOrderId("os-2")).thenReturn(Optional.of(invalidWork));
+        assertThrows(Exception.class, () -> service.compensateDiagnosisCompletedFailure(new ServiceOrderIdEvent("os-2"), "corr"));
+    }
+
+    @Test
+    void compensatesServiceOrderRecusedFromAwaitingApprovalOrApprovedAndReleasesSupplies() throws Exception {
+        var mapper = new ObjectMapper();
+        String recusedJson = """
+                {
+                  "serviceOrderId": "os-recused-1",
+                  "status": "RECUSED",
+                  "sypplyes": [
+                    { "supplieId": "supply-1", "quantity": 3 }
+                  ]
+                }
+                """;
+        var awaitingWork = order("os-recused-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        awaitingWork.setClientSendDate(LocalDateTime.now().minusMinutes(5));
+        awaitingWork.setStockReserved(true);
+        when(repository.findByServiceOrderId("os-recused-1")).thenReturn(Optional.of(awaitingWork));
+
+        var recusedEvent = mapper.readValue(recusedJson, br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent.class);
+        service.compensateServiceOrderRecused(recusedEvent, "corr-recused");
+        service.compensateServiceOrderRecused(recusedEvent, "corr-recused");
+
+        verify(stockService, times(1)).releaseSupplies(eq("os-recused-1"),
+                eq(List.of(new br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest("supply-1", 3))));
+        assertFalse(awaitingWork.isStockReserved());
+        assertEquals(ServiceOrderStatus.RECUSADA, awaitingWork.getStatus());
+
+        var approvedWork = order("os-recused-2", ServiceOrderStatus.APROVADA);
+        approvedWork.setApprovalDate(LocalDateTime.now().minusMinutes(5));
+        var localItems = List.of(new br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest("supply-2", 1));
+        approvedWork.setStockReservationItems(localItems);
+        approvedWork.setStockReserved(true);
+        when(repository.findByServiceOrderId("os-recused-2")).thenReturn(Optional.of(approvedWork));
+
+        var fallbackEvent = new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-recused-2", "RECUSED", List.of());
+        service.compensateServiceOrderRecused(fallbackEvent, "corr-recused-2");
+
+        verify(stockService).releaseSupplies("os-recused-2", localItems);
+        assertEquals(ServiceOrderStatus.RECUSADA, approvedWork.getStatus());
+
+        var approvedBillingWork = order("os-refund", ServiceOrderStatus.APROVADA);
+        approvedBillingWork.setStockReserved(true);
+        approvedBillingWork.setStockReservationItems(localItems);
+        when(repository.findByServiceOrderId("os-refund")).thenReturn(Optional.of(approvedBillingWork));
+        service.receiveBillingDecision(new br.com.officyna_execution_production.serviceorder.event.BillingDecisionEvent("os-refund", "REFUNDED"), "corr-refund");
+        assertEquals(ServiceOrderStatus.RECUSADA, approvedBillingWork.getStatus());
+
+        assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(null, "corr"));
+        var inExecutionWork = order("os-exec", ServiceOrderStatus.EM_EXECUCAO);
+        when(repository.findByServiceOrderId("os-exec")).thenReturn(Optional.of(inExecutionWork));
+        assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(
+                new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-exec", "RECUSED", List.of()), "corr"));
     }
 
     private ExecutionWork order(String id, ServiceOrderStatus status) {
