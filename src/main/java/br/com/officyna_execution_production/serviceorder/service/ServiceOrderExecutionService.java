@@ -6,7 +6,9 @@ import br.com.officyna_execution_production.serviceorder.domain.enums.*;
 import br.com.officyna_execution_production.serviceorder.domain.exception.*;
 import br.com.officyna_execution_production.serviceorder.event.*;
 import br.com.officyna_execution_production.serviceorder.domain.repository.ExecutionWorkRepository;
+import br.com.officyna_execution_production.administrative.supply.domain.entity.Supply;
 import br.com.officyna_execution_production.administrative.supply.domain.service.StockService;
+import br.com.officyna_execution_production.administrative.supply.domain.service.SupplyService;
 import br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import br.com.officyna_execution_production.monitoring.domain.service.LaborMonitoringService;
@@ -29,6 +31,7 @@ import java.util.*;
 public class ServiceOrderExecutionService {
     private final ExecutionWorkRepository executionRepository;
     private final StockService stockService;
+    private final SupplyService supplyService;
     private final ExecutionPublisher executionPublisher;
     private final OsServiceClient osServiceClient;
     private final LaborMonitoringService laborMonitoringService;
@@ -62,6 +65,19 @@ public class ServiceOrderExecutionService {
         LocalDateTime start = getStatusStartDate(serviceOrder, previous);
         serviceOrder.setStatus(next); // Same state-machine validations as the monolith.
         log.info("Service order status changed. event=SERVICE_ORDER_STATUS_CHANGED, serviceOrderId={}, previousStatus={}, status={}", serviceOrder.getServiceOrderId(), previous, next);
+        LocalDateTime end = getStatusStartDate(serviceOrder, next);
+        if (start != null && end != null) {
+            long seconds = Duration.between(start, end).getSeconds();
+            log.info("Service order status duration. event=SERVICE_ORDER_STATUS_DURATION, serviceOrderId={}, status={}, startDate={}, endDate={}, durationInSeconds={}, durationInMinutes={}", serviceOrder.getServiceOrderId(), previous, start, end, seconds, seconds / 60.0);
+        }
+    }
+
+    private void compensateStatus(ExecutionWork serviceOrder, ServiceOrderStatus next) {
+        ServiceOrderStatus previous = serviceOrder.getStatus();
+        LocalDateTime start = getStatusStartDate(serviceOrder, previous);
+        serviceOrder.setStatus(null);
+        serviceOrder.setStatus(next);
+        log.info("Service order status compensated. event=SERVICE_ORDER_STATUS_CHANGED, serviceOrderId={}, previousStatus={}, status={}", serviceOrder.getServiceOrderId(), previous, next);
         LocalDateTime end = getStatusStartDate(serviceOrder, next);
         if (start != null && end != null) {
             long seconds = Duration.between(start, end).getSeconds();
@@ -132,7 +148,16 @@ public class ServiceOrderExecutionService {
 
     public JsonNode addSupply(String serviceOrderId, AddSupplyRequest request, String token) {
         findByServiceOrderId(serviceOrderId);
-        return osServiceClient.addSupply(serviceOrderId, request.supplyId(), request.quantity(), token);
+        Supply supply = supplyService.findById(request.supplyId());
+        return osServiceClient.addSupply(
+                serviceOrderId,
+                supply.getId(),
+                request.quantity(),
+                supply.getName(),
+                supply.getDescription(),
+                supply.getSalePrice(),
+                token
+        );
     }
 
     public JsonNode removeSupply(String serviceOrderId, String supplyId, String token) {
@@ -170,8 +195,12 @@ public class ServiceOrderExecutionService {
             log.info("Ignoring duplicate approval. serviceOrderId={}", event.getServiceOrderId());
             return;
         }
-        validateCurrentStatus(serviceOrder, ServiceOrderStatus.AGUARDANDO_APROVACAO);
-        changeStatus(serviceOrder, paymentDecision);
+        if (paymentDecision == ServiceOrderStatus.RECUSADA && serviceOrder.getStatus() == ServiceOrderStatus.APROVADA) {
+            compensateStatus(serviceOrder, ServiceOrderStatus.RECUSADA);
+        } else {
+            validateCurrentStatus(serviceOrder, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+            changeStatus(serviceOrder, paymentDecision);
+        }
         serviceOrder.setCorrelationId(correlationId);
         if (paymentDecision == ServiceOrderStatus.RECUSADA && serviceOrder.isStockReserved()) {
             stockService.releaseSupplies(event.getServiceOrderId(), getStockItems(serviceOrder));
@@ -181,14 +210,87 @@ public class ServiceOrderExecutionService {
         save(serviceOrder);
     }
 
-    private ServiceOrderStatus parsePaymentDecision(String statusPayment) {
-        if (statusPayment == null) return null;
-        try {
-            ServiceOrderStatus decision = ServiceOrderStatus.valueOf(statusPayment.trim().toUpperCase(Locale.ROOT));
-            return decision == ServiceOrderStatus.APROVADA || decision == ServiceOrderStatus.RECUSADA ? decision : null;
-        } catch (IllegalArgumentException exception) {
-            return null;
+    public void compensateDiagnosisFailure(DiagnosisStartedEvent event, String correlationId) {
+        if (event == null || event.serviceOrderId() == null || event.serviceOrderId().isBlank())
+            throw new ServiceOrderBusinessException("Evento de compensação de diagnóstico inválido");
+        ExecutionWork serviceOrder = findByServiceOrderId(event.serviceOrderId());
+        if (serviceOrder.getStatus() == ServiceOrderStatus.RECEBIDA) {
+            log.info("Ignoring duplicate eventDiagnosisDlq compensation. serviceOrderId={}", event.serviceOrderId());
+            return;
         }
+        validateCurrentStatus(serviceOrder, ServiceOrderStatus.EM_DIAGNOSTICO);
+        LocalDateTime registrationDate = serviceOrder.getRegistrationDate();
+        compensateStatus(serviceOrder, ServiceOrderStatus.RECEBIDA);
+        if (registrationDate != null) {
+            serviceOrder.setRegistrationDate(registrationDate);
+        }
+        serviceOrder.setDiagnosisStartDate(null);
+        serviceOrder.setMechanicId(null);
+        serviceOrder.setMechanicName(null);
+        if (correlationId != null && !correlationId.isBlank()) {
+            serviceOrder.setCorrelationId(correlationId);
+        }
+        save(serviceOrder);
+    }
+
+    public void compensateDiagnosisCompletedFailure(ServiceOrderIdEvent event, String correlationId) {
+        if (event == null || event.serviceOrderId() == null || event.serviceOrderId().isBlank())
+            throw new ServiceOrderBusinessException("Evento de compensação de conclusão de diagnóstico inválido");
+        ExecutionWork serviceOrder = findByServiceOrderId(event.serviceOrderId());
+        if (serviceOrder.getStatus() == ServiceOrderStatus.EM_DIAGNOSTICO) {
+            log.info("Ignoring duplicate eventDiagnosisCompletedDlq compensation. serviceOrderId={}", event.serviceOrderId());
+            return;
+        }
+        validateCurrentStatus(serviceOrder, ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        if (serviceOrder.isStockReserved()) {
+            stockService.releaseSupplies(serviceOrder.getServiceOrderId(), getStockItems(serviceOrder));
+            serviceOrder.setStockReserved(false);
+            serviceOrder.setStockReservationItems(List.of());
+        }
+        LocalDateTime diagnosisStartDate = serviceOrder.getDiagnosisStartDate();
+        compensateStatus(serviceOrder, ServiceOrderStatus.EM_DIAGNOSTICO);
+        if (diagnosisStartDate != null) {
+            serviceOrder.setDiagnosisStartDate(diagnosisStartDate);
+        }
+        serviceOrder.setClientSendDate(null);
+        if (correlationId != null && !correlationId.isBlank()) {
+            serviceOrder.setCorrelationId(correlationId);
+        }
+        save(serviceOrder);
+    }
+
+    public void compensateServiceOrderRecused(ServiceOrderRecusedEvent event, String correlationId) {
+        if (event == null || event.getServiceOrderId() == null || event.getServiceOrderId().isBlank())
+            throw new ServiceOrderBusinessException("Evento de recusa de ordem de serviço inválido");
+        ExecutionWork serviceOrder = findByServiceOrderId(event.getServiceOrderId());
+        if (serviceOrder.getStatus() == ServiceOrderStatus.RECUSADA) {
+            log.info("Ignoring duplicate eventServiceOrderRecused compensation. serviceOrderId={}", event.getServiceOrderId());
+            return;
+        }
+        if (serviceOrder.getStatus() != ServiceOrderStatus.AGUARDANDO_APROVACAO
+                && serviceOrder.getStatus() != ServiceOrderStatus.APROVADA) {
+            throw new ServiceOrderBusinessException("Transição inválida: esperado AGUARDANDO_APROVACAO ou APROVADA, atual " + serviceOrder.getStatus());
+        }
+        List<StockItemRequest> eventItems = event.toStockItemRequests();
+        List<StockItemRequest> itemsToRelease = !eventItems.isEmpty() ? eventItems : getStockItems(serviceOrder);
+        if (serviceOrder.isStockReserved() || !eventItems.isEmpty()) {
+            stockService.releaseSupplies(serviceOrder.getServiceOrderId(), itemsToRelease);
+            serviceOrder.setStockReserved(false);
+        }
+        compensateStatus(serviceOrder, ServiceOrderStatus.RECUSADA);
+        if (correlationId != null && !correlationId.isBlank()) {
+            serviceOrder.setCorrelationId(correlationId);
+        }
+        save(serviceOrder);
+    }
+
+    private ServiceOrderStatus parsePaymentDecision(String statusPayment) {
+        if (statusPayment == null || statusPayment.isBlank()) return null;
+        return switch (statusPayment.trim().toUpperCase(Locale.ROOT)) {
+            case "APROVADA", "APROVADO", "APROVED", "APPROVED", "PAID" -> ServiceOrderStatus.APROVADA;
+            case "RECUSADA", "RECUSADO", "RECUSED", "REJECTED", "CANCELED", "CANCELLED", "REFUNDED", "FAILED" -> ServiceOrderStatus.RECUSADA;
+            default -> null;
+        };
     }
 
     private boolean hasAlreadyProcessedBillingDecision(ExecutionWork serviceOrder, ServiceOrderStatus decision) {

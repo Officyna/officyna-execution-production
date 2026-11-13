@@ -30,6 +30,8 @@ public class ExecutionPublisher {
     private String executionStartedQueue;
     @Value("${aws.sqs.event-diagnosis-completed}")
     private String diagnosisCompletedQueue;
+    @Value("${aws.sqs.event-for-diagnostics-dlq:eventForDiagnosticsDlq}")
+    private String diagnosticsDlqQueue;
 
     public void publish(String type, Object payload, String correlationId) {
         if (correlationId == null || correlationId.isBlank())
@@ -61,6 +63,7 @@ public class ExecutionPublisher {
             case "eventDiagnosisCompleted" -> sqsTemplate.send(diagnosisCompletedQueue, message);
             case "eventExecutionStarted" -> sqsTemplate.send(executionStartedQueue, message);
             case "eventForOsCompleted" -> sqsTemplate.send(completedQueue, message);
+            case "eventForDiagnosticsDlq" -> sqsTemplate.send(diagnosticsDlqQueue, message);
             default -> throw new IllegalArgumentException("Evento desconhecido: " + type);
         }
     }

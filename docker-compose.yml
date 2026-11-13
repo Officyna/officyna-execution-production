@@ -56,11 +56,15 @@ services:
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SPRING_CLOUD_AWS_SQS_ENDPOINT: http://localstack:4566
       EVENT_FOR_DIAGNOSTICS_QUEUE: ${EVENT_FOR_DIAGNOSTICS_QUEUE:-eventForDiagnostics}
+      EVENT_FOR_DIAGNOSTICS_DLQ: ${EVENT_FOR_DIAGNOSTICS_DLQ:-eventForDiagnosticsDlq}
       EVENT_DIAGNOSIS_QUEUE: ${EVENT_DIAGNOSIS_QUEUE:-eventDiagnosis}
+      EVENT_DIAGNOSIS_DLQ_QUEUE: ${EVENT_DIAGNOSIS_DLQ_QUEUE:-eventDiagnosisDlq}
       EVENT_EXECUTION_STARTED_QUEUE: ${EVENT_EXECUTION_STARTED_QUEUE:-eventExecutionStarted}
       EVENT_FOR_OS_COMPLETED_QUEUE: ${EVENT_FOR_OS_COMPLETED_QUEUE:-eventForOsCompleted}
-      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-topicAprovacao}
+      EVENT_SERVICE_ORDER_RECUSED_QUEUE: ${EVENT_SERVICE_ORDER_RECUSED_QUEUE:-eventServiceOrderRecused}
+      APPROVAL_QUEUE: ${APPROVAL_QUEUE:-productionApproval}
       EVENT_DIAGNOSIS_COMPLETED_QUEUE: ${EVENT_DIAGNOSIS_COMPLETED_QUEUE:-eventDiagnosisCompleted}
+      EVENT_DIAGNOSIS_COMPLETED_DLQ_QUEUE: ${EVENT_DIAGNOSIS_COMPLETED_DLQ_QUEUE:-eventDiagnosisCompletedDlq}
       NEW_RELIC_APP_NAME: production-execution-service
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
