@@ -118,7 +118,10 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       EKS_CLUSTER_NAME: eks-officyna-service
       EVENT_FOR_DIAGNOSTICS_QUEUE: eventForDiagnostics
-      EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnosticsDlq
+      EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnostics-dlq
+      EVENT_SERVICE_ORDER_RECUSED_QUEUE: eventServiceOrderRecused
+      EVENT_SERVICE_ORDER_RECUSED_DLQ: eventServiceOrderRecused-dlq
+      SNS_TOPIC_SERVICE_ORDER_RECUSED: topicServiceOrderRecused
     permissions:
       contents: read
       packages: read
@@ -201,6 +204,48 @@ jobs:
               --notification-endpoint "$APPROVAL_QUEUE_ARN" \
               --attributes RawMessageDelivery=true >/dev/null || true
           fi
+
+      - name: Garantir fila de recusa de OS e subscription SNS
+        run: |
+          # Criar DLQ para recusa
+          aws sqs create-queue --queue-name "$EVENT_SERVICE_ORDER_RECUSED_DLQ" >/dev/null
+          RECUSED_DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_SERVICE_ORDER_RECUSED_DLQ" --query 'QueueUrl' --output text)
+          RECUSED_DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$RECUSED_DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+
+          # Criar fila principal com redrive para a DLQ
+          aws sqs create-queue --queue-name "$EVENT_SERVICE_ORDER_RECUSED_QUEUE" >/dev/null
+          RECUSED_QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_SERVICE_ORDER_RECUSED_QUEUE" --query 'QueueUrl' --output text)
+          RECUSED_QUEUE_ARN=$(aws sqs get-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          REDRIVE_FILE=$(mktemp)
+          trap 'rm -f "$REDRIVE_FILE"' EXIT
+          jq -nc --arg arn "$RECUSED_DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$REDRIVE_FILE"
+          aws sqs set-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attributes "file://$REDRIVE_FILE"
+
+          # Criar tópico SNS (idempotente) e subscribir a fila
+          RECUSED_TOPIC_ARN=$(aws sns create-topic --name "$SNS_TOPIC_SERVICE_ORDER_RECUSED" --query 'TopicArn' --output text)
+
+          # Permitir que o SNS publique na fila SQS
+          POLICY_FILE=$(mktemp)
+          trap 'rm -f "$POLICY_FILE"' EXIT
+          jq -nc --arg qarn "$RECUSED_QUEUE_ARN" --arg tarn "$RECUSED_TOPIC_ARN" '{
+            Policy: ({
+              Version: "2012-10-17",
+              Statement: [{
+                Effect: "Allow",
+                Principal: {Service: "sns.amazonaws.com"},
+                Action: "sqs:SendMessage",
+                Resource: $qarn,
+                Condition: {ArnEquals: {"aws:SourceArn": $tarn}}
+              }]
+            } | tojson)
+          }' > "$POLICY_FILE"
+          aws sqs set-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attributes "file://$POLICY_FILE"
+
+          aws sns subscribe \
+            --topic-arn "$RECUSED_TOPIC_ARN" \
+            --protocol sqs \
+            --notification-endpoint "$RECUSED_QUEUE_ARN" \
+            --attributes RawMessageDelivery=true
 
       - name: Ler endpoint do DocumentDB
         id: docdb
