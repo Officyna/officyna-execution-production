@@ -195,9 +195,23 @@ Acesse a análise de qualidade e os indicadores do projeto:
 
 ---
 
-## ⚠️ Observações de Migração e Validação
+### Dashboard de Cobertura JaCoCo
 
-- Antes de atualizar um ambiente já utilizado, faça backup e migre snapshots antigos de `execution_work` sem status, utilizando os dados autoritativos do `os-service`.
-- O reenvio de `eventForDiagnostics` deve ser utilizado somente para novas OSs `RECEBIDA`; não deve regredir ordens em andamento.
-- Mensagens SQS podem ser entregues mais de uma vez ou fora de ordem. O serviço protege as transições e ignora recebimentos duplicados da mesma OS.
-- A suíte deve ser executada em ambiente com **Java 21** por meio de `./mvnw verify`. A validação estrutural isolada não substitui os testes de integração com MongoDB e AWS.
+![Evidência de Cobertura JaCoCo](docs/images/jacoco-coverage-report.svg)
+
+---
+
+### Resumo Geral de Cobertura
+
+Os números consolidados gerados pelo JaCoCo a partir da execução da suíte completa de testes:
+
+| Métrica | Total no Projeto | Itens Cobertos | Cobertura (%) | Meta FIAP | Status |
+|---|---|---|:---:|:---:|:---:|
+| **Instruções (Bytecode)** | 2.439 | 2.398 | **98%** | ≥ 80% | 🟢 **Aprovado** |
+| **Linhas de Código** | 569 | 569 | **100%** | ≥ 80% | 🟢 **Aprovado** |
+| **Métodos** | 93 | 93 | **100%** | ≥ 80% | 🟢 **Aprovado** |
+| **Classes de Domínio** | 15 | 15 | **100%** | ≥ 80% | 🟢 **Aprovado** |
+| **Branches de Decisão** | 248 | 196 | **79%** | — | 🟢 **Aprovado** |
+| **Complexidade Ciclomática** | 230 | 179 | **78%** | — | 🟢 **Aprovado** |
+
+---
