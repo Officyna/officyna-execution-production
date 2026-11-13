@@ -1,0 +1,1380 @@
+{
+  "info": {
+    "_postman_id": "0a2475e5-60b3-41d8-8335-0040f97dfd0e",
+    "name": "Officyna Execution Prodution Service",
+    "description": "Collection completa da API Officyna — organizada por módulo. Configure a variável `baseUrl` (default: http://localhost:8080) e `token` (preenchido automaticamente após o login).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "28811195"
+  },
+  "item": [
+    {
+      "name": "🔐 Autenticação",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();\nif (json.token) {\n    pm.collectionVariables.set('token', json.token);\n    console.log('Token salvo:', json.token);\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kacey.lesch@yahoo.com\",\n  \"password\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "a8b2990941cbc4d63aafeb17e44f2d5e-733555654.us-east-1.elb.amazonaws.com/api/auth/login",
+              "host": [
+                "a8b2990941cbc4d63aafeb17e44f2d5e-733555654",
+                "us-east-1",
+                "elb",
+                "amazonaws",
+                "com"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔧 Mão de Obra (Labors)",
+      "item": [
+        {
+          "name": "Listar todos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/labors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "labors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();\r",
+                  "pm.collectionVariables.set('labor_id', json.id);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/labors/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "labors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{labor_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Criar serviço",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();\r",
+                  "pm.collectionVariables.set('labor_id', json.id);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "  {\n    \"name\": \"Diagnóstico Computadorizado\",\n    \"description\": \"Leitura de erros via scanner e análise de sensores eletrônicos.\",\n    \"price\": 150.00,\n    \"executionTimeInDays\": 1,\n    \"active\": true\n  }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/labors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "labors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar serviço",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Troca de óleo (atualizado)\",\n  \"description\": \"Troca de óleo sintético 5W30 com filtro\",\n  \"price\": 150.00,\n  \"executionTimeInDays\": 1,\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/labors/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "labors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{labor_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover serviço",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/labors/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "labors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{labor_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📦 Insumos e Peças (Supplies)",
+      "item": [
+        {
+          "name": "Estoque",
+          "item": [
+            {
+              "name": "Reservar insumo para OS",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Reserva criada', () => pm.response.to.have.status(204));",
+                      "pm.collectionVariables.set('last_stock_operation', 'RESERVA');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplies\": [\n    {\n      \"supplyId\": \"{{supply_id}}\",\n      \"quantity\": {{stock_quantity}}\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/stock/service-orders/{{service_order_id}}/reserve",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "stock",
+                    "service-orders",
+                    "{{service_order_id}}",
+                    "reserve"
+                  ]
+                },
+                "description": "Reserva a quantidade solicitada. A quantidade reservada não pode ultrapassar o estoque disponível. Resposta: 204 No Content."
+              },
+              "response": []
+            },
+            {
+              "name": "Consumir insumo da OS",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Consumo registrado', () => pm.response.to.have.status(204));",
+                      "pm.collectionVariables.set('last_stock_operation', 'CONSUMO');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplies\": [\n    {\n      \"supplyId\": \"{{supply_id}}\",\n      \"quantity\": {{stock_quantity}}\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/stock/service-orders/{{service_order_id}}/consume",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "stock",
+                    "service-orders",
+                    "{{service_order_id}}",
+                    "consume"
+                  ]
+                },
+                "description": "Baixa a quantidade do estoque e reduz a reserva da OS. Resposta: 204 No Content."
+              },
+              "response": []
+            },
+            {
+              "name": "Liberar reserva da OS",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Reserva liberada', () => pm.response.to.have.status(204));",
+                      "pm.collectionVariables.set('last_stock_operation', 'LIBERACAO');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplies\": [\n    {\n      \"supplyId\": \"{{supply_id}}\",\n      \"quantity\": {{stock_quantity}}\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/stock/service-orders/{{service_order_id}}/release",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "stock",
+                    "service-orders",
+                    "{{service_order_id}}",
+                    "release"
+                  ]
+                },
+                "description": "Libera a quantidade reservada, sem baixar o estoque físico. Resposta: 204 No Content."
+              },
+              "response": []
+            },
+            {
+              "name": "Consultar histórico de movimentações da OS",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Histórico retornado', () => pm.response.to.have.status(200));",
+                      "const movements = pm.response.json();",
+                      "pm.test('Resposta é uma lista', () => pm.expect(movements).to.be.an('array'));",
+                      "if (movements.length) {",
+                      "  pm.collectionVariables.set('stock_movement_id', movements[0].id);",
+                      "  pm.collectionVariables.set('last_stock_operation', movements[0].operation);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/stock/service-orders/{{service_order_id}}/movements",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "stock",
+                    "service-orders",
+                    "{{service_order_id}}",
+                    "movements"
+                  ]
+                },
+                "description": "Retorna os movimentos da OS do mais recente para o mais antigo. Cada item possui id, serviceOrderId, supplyId, operation (RESERVA, CONSUMO ou LIBERACAO), quantity e createdAt."
+              },
+              "response": []
+            },
+            {
+              "name": "Consultar insumo após movimentação",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Insumo retornado', () => pm.response.to.have.status(200));",
+                      "const supply = pm.response.json();",
+                      "pm.collectionVariables.set('supply_id', supply.id);",
+                      "pm.collectionVariables.set('available_quantity', String(supply.availableQuantity));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/supplies/{{supply_id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "supplies",
+                    "{{supply_id}}"
+                  ]
+                },
+                "description": "Confirma stockQuantity, reservedQuantity e availableQuantity depois de uma operação de estoque."
+              },
+              "response": []
+            }
+          ],
+          "description": "O contrato envia uma lista de insumos em supplies. Cada item requer supplyId e quantity positiva. As operações retornam 204 sem corpo; o histórico retorna os movimentos registrados."
+        },
+        {
+          "name": "Listar todos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por tipo (SUPPLY)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies/type/SUPPLY",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies",
+                "type",
+                "SUPPLY"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por tipo (PART)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies/type/PART",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies",
+                "type",
+                "PART"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();\r\npm.collectionVariables.set('supply_id', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{supply_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Criar insumo (SUPPLY)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();\r",
+                  "pm.collectionVariables.set('supply_id', json.id);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Óleo Motor 5W30\",\n  \"description\": \"Óleo sintético para motor a gasolina\",\n  \"type\": \"SUPPLY\",\n  \"purchasePrice\": 45.90,\n  \"markupPercentage\": 30.00,\n  \"stockQuantity\": 50,\n  \"minimumQuantity\": 10,\n  \"reservedQuantity\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Criar peça (PART)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Filtro de Óleo\",\n  \"description\": \"Filtro de óleo compatível com motores 1.0 a 2.0\",\n  \"type\": \"PART\",\n  \"purchasePrice\": 25.00,\n  \"markupPercentage\": 50.00,\n  \"stockQuantity\": 30,\n  \"minimumQuantity\": 5,\n  \"reservedQuantity\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar insumo/peça",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Óleo Motor 5W30 (atualizado)\",\n  \"description\": \"Óleo sintético premium\",\n  \"type\": \"SUPPLY\",\n  \"purchasePrice\": 49.90,\n  \"markupPercentage\": 35.00,\n  \"stockQuantity\": 60,\n  \"minimumQuantity\": 10,\n  \"reservedQuantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{supply_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover insumo/peça",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supplies/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "supplies",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "SUPPLY_ID_AQUI"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📋 Ordens de Serviço",
+      "item": [
+        {
+          "name": "Listar OSs em execução",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lista retornada', () => pm.response.to.have.status(200));",
+                  "const orders = pm.response.json();",
+                  "if (orders.length) pm.collectionVariables.set('service_order_id', orders[0].serviceOrderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution"
+              ]
+            },
+            "description": "Retorna OSs em RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADA ou EM_EXECUCAO."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar OS por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OS retornada', () => pm.response.to.have.status(200));\nconst order = pm.response.json();\npm.collectionVariables.set('service_order_id', order.serviceOrderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Iniciar diagnóstico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Diagnóstico iniciado', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/diagnosis/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "diagnosis",
+                "start"
+              ]
+            },
+            "description": "Requer token com mechanicId e mechanicName. A OS precisa estar RECEBIDA."
+          },
+          "response": []
+        },
+        {
+          "name": "Adicionar labor à OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Resposta do os-service recebida', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"laborId\": \"{{labor_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/labors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "labors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover labor da OS",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/labors/{{labor_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "labors",
+                "{{labor_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Adicionar insumo à OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplyId\": \"{{supply_id}}\",\n  \"quantity\": {{stock_quantity}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/supplies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "supplies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover insumo da OS",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/supplies/{{supply_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "supplies",
+                "{{supply_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar informação do diagnóstico",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"informationText\": \"Diagnóstico atualizado pelo Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/information",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "information"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Enviar OS para aprovação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OS enviada para aprovação', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/submit-for-approval",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "submit-for-approval"
+              ]
+            },
+            "description": "Reserva os insumos da OS e publica eventDiagnosisCompleted."
+          },
+          "response": []
+        },
+        {
+          "name": "Iniciar execução da OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Execução iniciada', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "start"
+              ]
+            },
+            "description": "A OS deve estar APROVADA. Atualiza o os-service e consome estoque reservado."
+          },
+          "response": []
+        },
+        {
+          "name": "Iniciar labor da OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Labor iniciado', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/labors/{{labor_id}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "labors",
+                "{{labor_id}}",
+                "start"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Finalizar labor da OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Labor finalizado', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/labors/{{labor_id}}/finish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "labors",
+                "{{labor_id}}",
+                "finish"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Finalizar execução da OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OS finalizada', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/execution/{{service_order_id}}/finish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "execution",
+                "{{service_order_id}}",
+                "finish"
+              ]
+            },
+            "description": "A OS deve estar EM_EXECUCAO e não pode possuir labor pendente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📋 Ordens de Serviço — Portal do Cliente",
+      "item": [
+        {
+          "name": "Buscar O.S. por documento do cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/serviceorder/customer/:document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "serviceorder",
+                "customer",
+                ":document"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "RECEBIDA",
+                  "description": "Opcional — RECEBIDA | EM_DIAGNOSTICO | AGUARDANDO_APROVACAO | APROVADA | EM_EXECUCAO | FINALIZADA | ENTREGUE | RECUSADA",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "document",
+                  "value": "{{customer_doc_num}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Aprovar/recusar serviços",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  { \"laborId\": \"{{labor_id}}\", \"situation\": \"APROVADO\" }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/serviceorder/aproval-labors/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "serviceorder",
+                "aproval-labors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6a53bbf72e9a9c9ace5b7de9"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Monitoramento de Serviços",
+      "item": [
+        {
+          "name": "Listar tempo médio por serviço",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/monitoring/labors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "monitoring",
+                "labors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forçar recálculo geral",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/monitoring/force-recalc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "monitoring",
+                "force-recalc"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "customer_id",
+      "value": ""
+    },
+    {
+      "key": "vehichle_id",
+      "value": ""
+    },
+    {
+      "key": "labor_id",
+      "value": ""
+    },
+    {
+      "key": "supply_id",
+      "value": ""
+    },
+    {
+      "key": "service_order_id",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
+    },
+    {
+      "key": "mechanic_id",
+      "value": ""
+    },
+    {
+      "key": "customer_doc_num",
+      "value": ""
+    },
+    {
+      "key": "service_order_number",
+      "value": ""
+    },
+    {
+      "key": "available_quantity",
+      "value": ""
+    }
+  ]
+}
