@@ -1,90 +1,108 @@
-# production-execution-service
+# ⚙️ Production Execution Service
 
-Responsável pelo diagnóstico e pela execução da OS, pelos catálogos próprios de labor/supply, estoque e monitoring. O `os-service` é o dono dos itens e dados da OS; esta aplicação encaminha essas alterações por REST. O `billing-service` decide aprovação/pagamento.
+> **Officyna — Microsserviço de Diagnóstico e Execução de Ordens de Serviço**
 
-## Fluxo
+O **`production-execution-service`** é responsável pelo diagnóstico e pela execução das Ordens de Serviço (OS), incluindo os catálogos de labor e supply, controle de estoque e monitoring.
 
-### Organização da execução
+O `os-service` permanece como fonte oficial dos dados e itens da OS. Este microsserviço coordena o fluxo de execução e encaminha as alterações da OS por REST. O `billing-service` é responsável pelas decisões de aprovação e pagamento.
 
-- `ExecutionWork`: estado operacional local, datas/status, `correlationId` e itens necessários para manter uma reserva de estoque.
-- `ServiceOrderExecutionService`: coordena diagnóstico, aprovação, estoque, execução e monitoring. Métodos como `receiveServiceOrderForDiagnosis`, `startDiagnosis` e `finishServiceOrderExecution` descrevem a ação realizada.
-- `ExecutionWorkRepository`: interface de domínio usada pela service. `ExecutionWorkRepositoryGateway` acessa o Mongo e utiliza `ExecutionWorkDocumentMapper` para converter o snapshot sem disparar uma transição ao carregar o registro.
-- `ExecutionPublisher`: envia payloads específicos por fila e o `correlationId` como atributo da mensagem SQS, após o commit da transação ativa.
+---
 
-Os nomes das classes persistidas, a collection `execution_work`, as rotas HTTP e os contratos JSON foram preservados nesta refatoração. Logs de duração, monitoring, exceções e configurações New Relic continuam no fluxo.
+## 📋 Sumário
 
-1. `eventForDiagnostics` (SQS) → persiste snapshot `RECEBIDA`. **Receber o evento não inicia diagnóstico.**
-2. `POST /execution/{id}/diagnosis/start` → valida existência/estado local, grava `EM_DIAGNOSTICO`, mecânico e data, envia `eventDiagnosis` diretamente ao SQS.
-3. O mecânico adiciona/remove labor e supply e altera informações da OS por chamadas REST encaminhadas ao `os-service`, com o mesmo Bearer JWT da requisição. Os catálogos continuam neste serviço.
-4. `POST /execution/{id}/submit-for-approval` → reserva insumos, grava `AGUARDANDO_APROVACAO` e envia `eventDiagnosisCompleted` diretamente à fila SQS configurada. O monólito consultado não possui consumidor SQS desse evento; a esteira/serviço consumidor precisa estar disponível fora daquele repositório.
-5. `topicAprovacao` (SNS) → `productionApproval` (SQS, RawMessageDelivery=true) → recebe no corpo somente `serviceOrderId` e `statusPayment`; `correlationId` vem no atributo SQS. Esta peça atualiza o snapshot local e mantém a reserva de estoque quando aprovada; o estado oficial da OS pertence ao `os-service`.
-6. `POST /execution/{id}/start` ou início do primeiro labor → grava `EM_EXECUCAO`, consome reserva e emite `eventExecutionStarted` para manter o os-service atualizado.
-7. Início/fim individual de labor é encaminhado ao `os-service`; a resposta desse serviço alimenta o histórico local de monitoring.
-8. `POST /execution/{id}/finish` → consulta a OS no `os-service`, aplica a regra do monólito de não finalizar com labor não rejeitada sem início/fim, chama `update-status?status=FINALIZADA`, grava o snapshot e envia `eventForOsCompleted` ao SQS.
+- [Responsabilidades](#-responsabilidades)
+- [Fluxo de Execução](#-fluxo-de-execução)
+- [Endpoints](#-endpoints)
+- [Integração por Eventos](#-integração-por-eventos)
+- [Persistência](#-persistência)
+- [Execução Local](#-execução-local)
+- [Infraestrutura e Deploy](#-infraestrutura-e-deploy)
+- [Monitoramento e Qualidade](#-monitoramento-e-qualidade)
 
-Não há acesso ao banco do `os-service`. O `correlationId` recebido no atributo da mensagem `eventForDiagnostics` é persistido até o mecânico iniciar o diagnóstico.
+---
 
-## Endpoints
+## 🎯 Responsabilidades
 
-Todos os endpoints de negócio exigem Bearer JWT. Swagger e `/actuator/health` são públicos.
+- **Diagnóstico:** recebe novas OSs e controla o início e a conclusão do diagnóstico.
+- **Execução:** coordena o início da OS e o início/fim dos serviços realizados pelos mecânicos.
+- **Labor e Supply:** mantém os catálogos próprios e encaminha a inclusão/remoção de itens da OS ao `os-service`.
+- **Estoque:** realiza reservas e consumo de insumos durante o fluxo de execução.
+- **Monitoring:** registra os tempos de execução dos serviços e calcula médias de duração.
 
-| Método | Caminho | Corpo/efeito |
+> **Responsabilidade dos dados:** os itens e os dados oficiais da OS pertencem ao `os-service`. Este serviço mantém apenas o snapshot operacional necessário à execução.
+
+---
+
+## 🔄 Fluxo de Execução
+
+1. **Recebimento da OS:** a fila `eventForDiagnostics` envia a OS para este serviço, que persiste o snapshot com status `RECEBIDA`. O recebimento do evento não inicia o diagnóstico.
+2. **Início do diagnóstico:** `POST /execution/{id}/diagnosis/start` registra o mecânico, a data e o status `EM_DIAGNOSTICO`, e publica `eventDiagnosis`.
+3. **Preparação da OS:** inclusão e remoção de labor e supply, assim como alterações de informações, são encaminhadas ao `os-service` por REST.
+4. **Solicitação de aprovação:** `POST /execution/{id}/submit-for-approval` reserva os insumos, atualiza o status para `AGUARDANDO_APROVACAO` e publica `eventDiagnosisCompleted`.
+5. **Retorno da aprovação:** a mensagem recebida em `productionApproval` atualiza o snapshot local e mantém a reserva de estoque quando aprovada. O estado oficial da OS continua pertencendo ao `os-service`.
+6. **Início da execução:** o início da OS ou do primeiro labor atualiza o status para `EM_EXECUCAO`, consome a reserva e notifica o `os-service`.
+7. **Monitoring:** início e fim de cada labor são encaminhados ao `os-service`; os horários retornados alimentam o histórico local.
+8. **Conclusão:** `POST /execution/{id}/finish` valida as execuções dos labors, atualiza a OS para `FINALIZADA` no `os-service` e publica `eventForOsCompleted`.
+
+O `correlationId` recebido no atributo da mensagem SQS é mantido no snapshot e propagado nas mensagens publicadas.
+
+---
+
+## 🌐 Endpoints
+
+Todos os endpoints de negócio exigem autenticação via **Bearer JWT**. Swagger e `/actuator/health` são públicos.
+
+| Método | Endpoint | Descrição |
 |---|---|---|
-| GET | `/execution` | OSs ativas ordenadas por prioridade/data, como no monólito |
-| GET | `/execution/{id}` | Snapshot de execução |
-| POST | `/execution/{id}/diagnosis/start` | Mecânico recebido como principal autenticado; o filtro valida o JWT e lê `mechanicId`/`mechanicName` das claims (ou de `roles`); sem corpo |
-| POST | `/execution/{id}/labors` | `{"laborId":"l1"}`; dados/preço vêm do catálogo |
-| DELETE | `/execution/{id}/labors/{laborId}` | Encaminha remoção ao `os-service` |
-| POST | `/execution/{id}/supplies` | `{"supplyId":"s1","quantity":2}`; preço vem do catálogo |
-| DELETE | `/execution/{id}/supplies/{supplyId}` | Encaminha remoção ao `os-service` |
-| PUT | `/execution/{id}/information` | `{"informationText":"Diagnóstico realizado..."}`; encaminha ao `os-service` |
-| POST | `/execution/{id}/submit-for-approval` | Conclui diagnóstico e solicita aprovação |
-| POST | `/execution/{id}/start` | Inicia OS; não inventa horários de início dos labors |
-| POST | `/execution/{id}/labors/{laborId}/start` | Inicia labor; primeiro labor também inicia OS |
-| POST | `/execution/{id}/labors/{laborId}/finish` | Finaliza labor e registra monitoring |
-| POST | `/execution/{id}/finish` | Finaliza OS |
-| GET | `/api/monitoring/labors` | Médias de duração |
-| PUT | `/api/monitoring/force-recalc` | Recalcula médias usando histórico de execuções |
+| `GET` | `/execution` | Lista OSs ativas por prioridade/data |
+| `GET` | `/execution/{id}` | Consulta o snapshot da execução |
+| `POST` | `/execution/{id}/diagnosis/start` | Inicia o diagnóstico |
+| `POST` | `/execution/{id}/labors` | Adiciona labor à OS |
+| `DELETE` | `/execution/{id}/labors/{laborId}` | Remove labor da OS |
+| `POST` | `/execution/{id}/supplies` | Adiciona supply à OS |
+| `DELETE` | `/execution/{id}/supplies/{supplyId}` | Remove supply da OS |
+| `PUT` | `/execution/{id}/information` | Atualiza informações da OS |
+| `POST` | `/execution/{id}/submit-for-approval` | Conclui diagnóstico e solicita aprovação |
+| `POST` | `/execution/{id}/start` | Inicia a execução da OS |
+| `POST` | `/execution/{id}/labors/{laborId}/start` | Inicia um labor |
+| `POST` | `/execution/{id}/labors/{laborId}/finish` | Finaliza um labor e registra o monitoring |
+| `POST` | `/execution/{id}/finish` | Finaliza a OS |
+| `GET` | `/api/monitoring/labors` | Consulta médias de duração |
+| `PUT` | `/api/monitoring/force-recalc` | Recalcula médias com base no histórico |
 
-Controllers e processos administrativos existentes de labor, supply e estoque foram mantidos. Erros de OS inexistente retornam 404; regras de negócio, 400.
+As operações de labor, supply e informações da OS são encaminhadas ao `os-service`, utilizando o mesmo Bearer JWT recebido na requisição.
 
-Configure `OS_SERVICE_BASE_URL` localmente no `.env`. No deploy, o workflow lê a URL atual do parâmetro SSM definido por `OS_SERVICE_BASE_URL_PARAMETER` (padrão `/officyna/os-service/base-url`) e injeta-a no ConfigMap. A esteira de infraestrutura deve atualizar esse parâmetro após criar/substituir o ELB.
+---
 
-## Contratos de eventos
+## 📨 Integração por Eventos
 
-Recebimento em `eventForDiagnostics`: o corpo contém somente `serviceOrderId` e `status`; o atributo SQS `correlationId` é obrigatório e prevalece sobre qualquer campo no corpo.
+A comunicação assíncrona utiliza **Amazon SQS e SNS**.
 
-```json
-{"serviceOrderId":"os1","status":"RECEBIDA"}
-```
+### Eventos recebidos
 
-O registro local guarda `serviceOrderId`, status e `correlationId`; a aplicação não cria nem mantém cópias locais de labors/supplies da OS.
+| Fila/Tópico | Finalidade |
+|---|---|
+| `eventForDiagnostics` | Recebe uma OS para iniciar o fluxo de diagnóstico |
+| `productionApproval` | Recebe o resultado da aprovação |
 
-Aprovação integral mínima:
+### Eventos publicados
 
-```json
-{"serviceOrderId":"os1","status":"APROVADA"}
-```
+| Evento | Finalidade |
+|---|---|
+| `eventDiagnosis` | Informa o início do diagnóstico |
+| `eventDiagnosisCompleted` | Informa a conclusão do diagnóstico e solicita aprovação |
+| `eventExecutionStarted` | Notifica o início da execução |
+| `eventForOsCompleted` | Notifica a conclusão da OS |
 
-O status de aprovação não contém decisões de labor nem itens de supply; essas informações pertencem ao `os-service`.
+O `correlationId` é enviado como atributo da mensagem SQS. Os contratos utilizam somente os dados necessários para cada etapa; labor, supply, orçamento e informações de diagnóstico não são transportados nesses eventos.
 
-Contratos de saída:
+A fila `eventForDiagnostics` e sua DLQ são criadas pelo deploy deste microsserviço. As demais filas, tópicos, assinaturas SNS→SQS e DLQs pertencem à infraestrutura compartilhada.
 
-- `eventDiagnosis`: atributo SQS `correlationId`; corpo somente `serviceOrderId`, `mechanicId` e `mechanicName`.
-- `eventDiagnosisCompleted`: atributo SQS `correlationId`; corpo somente `serviceOrderId`.
-- `eventExecutionStarted` e `eventForOsCompleted`: atributo SQS `correlationId`; corpo `serviceOrderId` e `status`.
+---
 
-As ações do mecânico para iniciar/finalizar labor chamam os endpoints de `start-labor` e `finish-labor` no `os-service`, encaminhando o Bearer JWT. O início da primeira labor também muda a OS para `EM_EXECUCAO` no `os-service`; a conclusão geral chama `update-status` com `FINALIZADA`. O snapshot local acompanha essas transições. Ao finalizar labor, o monitoring local registra os horários devolvidos pelo `os-service`, em paralelo ao monitoring mantido pelo próprio `os-service`.
+## 🗄️ Persistência
 
-Os payloads não carregam identificador de evento, labors, supplies, orçamento ou informações de diagnóstico.
-
-Mensagens repetidas de diagnóstico são identificadas pelo `serviceOrderId` já existente. SQS pode entregar duplicatas e fora de ordem; as transições de status permanecem protegidas.
-
-## Persistência: três bancos
-
-A persistência de labor e supply fica em `infrastructure/persistence`: documentos em `mongodb/model`, repositórios Mongo em `mongodb/repository`, gateways em `mongodb/gateway` e conversores em `mapper`. Os documentos e o repositório de movimentações de estoque seguem essa mesma organização. As interfaces de domínio permanecem nos respectivos módulos administrativos. `StockService` trabalha com `StockMovement` e a interface `StockMovementRepository`; o gateway usa `StockMovementMongoRepository` e converte os documentos Mongo. O histórico mantém os mesmos campos no JSON da API.
-
-Três bancos lógicos no **mesmo cluster MongoDB e MongoClient**:
+A aplicação utiliza **três bancos lógicos no mesmo cluster MongoDB e MongoClient**:
 
 | Banco | Collections |
 |---|---|
@@ -92,41 +110,94 @@ Três bancos lógicos no **mesmo cluster MongoDB e MongoClient**:
 | `officyna_labor` | `labors`, `labor_monitoring`, `labor_executions` |
 | `officyna_snapshot` | `execution_work` |
 
-`execution_work` guarda o ID da OS (também `_id`), status, mecânico, `correlationId`, datas de cada status, flags de reserva/consumo e os IDs/quantidades reservados para estoque. Não mantém uma cópia dos labors/supplies da OS. O Mongo `_id` evita snapshots duplicados.
+A collection `execution_work` mantém o snapshot operacional da OS: identificador, status, mecânico, `correlationId`, datas das transições e informações de reserva/consumo de estoque.
 
-As mensagens são montadas em memória. Durante uma transação, o publicador registra um callback em memória e envia ao SQS apenas em afterCommit, quando o Mongo já confirmou a gravação. Rollback ou falha de commit não enviam mensagens. Não há mensagens persistidas nem reenvio automático. Sem transação ativa, o envio é imediato. Se o SQS falhar após o commit, o erro é propagado ao chamador e os dados Mongo permanecem confirmados. Uma interrupção do processo entre o commit e o envio também pode impedir a entrega; Mongo e SQS não formam uma transação única.
+Os itens de labor e supply da OS não são duplicados nesse snapshot; o `os-service` continua sendo o responsável pelos dados oficiais.
 
-Transações usam a mesma MongoDatabaseFactory/session entre os três templates. Requer **replica set** ou cluster com suporte às transações usadas. Não separar os bancos em três servidores independentes sem adaptar a coordenação. Collections/índices são criados antes do primeiro fluxo de negócio. Validar suporte/transações/índices na versão real do DocumentDB antes de produção.
+**Requisito:** as transações utilizam a mesma sessão MongoDB entre os três bancos lógicos. O ambiente MongoDB/DocumentDB deve oferecer suporte às transações utilizadas e operar com a configuração de cluster/replica set adequada.
 
-## Regras preservadas e particularidades do monólito
+---
 
-Veja `docs/REGRAS_E_VALIDACAO.md` para rastreabilidade. Não foram inventados bloqueios de edição por status, execução sequencial ou exigência de labor aprovado no endpoint de início: essas restrições não existem no código fonte recebido. Elas podem ser requisitos desejáveis, mas mudariam a regra existente.
+## 🚀 Execução Local
 
-JWT preserva assinatura/chave, expiração e roles do token emitido pelo serviço de autenticação. O filtro extrai o usuário, carrega seus `UserDetails` pelo componente `AuthService` e valida o token contra esse usuário, seguindo o fluxo do monólito; o controller não decodifica o token. `AuthService` está temporariamente simulado usando as claims assinadas, pois o contrato do serviço de identidade ainda não foi disponibilizado. Quando esse serviço existir, a implementação deverá carregar/validar o usuário nele. O endpoint de diagnóstico valida `mechanicId` preenchido e os estados da OS, mas **não verifica o cadastro remoto do mecânico**.
+### Pré-requisitos
 
-## Execução
+- **Java 21**
+- **Docker e Docker Compose**
+- Credenciais AWS ou role com permissões necessárias para SQS
+- Arquivo `.env` configurado a partir de `.env.example`
 
-Java 21. Configurar `.env` usando `.env.example`, filas/tópicos e credenciais AWS ou role da aplicação. Executar:
+### Executar testes e validações
 
 ```bash
 ./mvnw verify
+```
+
+### Subir a aplicação e dependências
+
+```bash
 docker compose up --build
 ```
 
-Compose inicializa Mongo replica set e publica a aplicação em 8084. Para usar Mongo fora do Compose, configure replica set com hostname acessível à JVM; o hostname `mongodb` anunciado pelo Compose é destinado aos containers.
+O Docker Compose inicializa o MongoDB com replica set e publica a aplicação na porta **8084**.
 
-O deploy cria e configura a fila `eventForDiagnostics` e sua DLQ `eventForDiagnostics-dlq`, movendo mensagens para a DLQ após cinco tentativas. As demais filas, tópicos, assinaturas SNS→SQS e DLQs pertencem à infraestrutura compartilhada e não são criados por este microsserviço.
+Para utilizar um MongoDB externo ao Compose, configure um replica set com hostname acessível pela JVM. O hostname `mongodb` anunciado pelo Compose é destinado à comunicação entre containers.
 
-No deploy Kubernetes, `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY` são armazenadas no Secret da aplicação, como na `officyna-os-service`. Essas credenciais precisam de SQS ReceiveMessage/DeleteMessage/ChangeMessageVisibility/GetQueueAttributes/GetQueueUrl nas filas de entrada e SQS SendMessage/GetQueueUrl nas filas de saída.
+### Configurações importantes
 
-Esta peça não cria nem configura cluster ou nodes. O repositório de infraestrutura mantém EKS, node groups, rede, addons compartilhados, roles e políticas IAM. Este repositório constrói/publica a imagem e aplica os recursos Kubernetes da aplicação (`Deployment`, `Service` público `LoadBalancer`, `HPA`, `ServiceAccount`, `ConfigMap` e Secrets). O workflow conecta ao cluster existente, busca o endpoint DocumentDB no SSM e faz o rollout. A AWS provisiona o endpoint público do Service durante o deploy.
+| Variável | Finalidade |
+|---|---|
+| `OS_SERVICE_BASE_URL` | URL base do `os-service` no ambiente local |
+| `OS_SERVICE_BASE_URL_PARAMETER` | Parâmetro SSM usado pelo deploy para obter a URL do `os-service` |
 
-Cada deploy usa uma tag de imagem imutável baseada no SHA do commit. As tags `developer` e `latest` continuam disponíveis como referências, mas não são usadas para definir a versão aplicada ao Kubernetes.
+No deploy, o workflow consulta o parâmetro SSM configurado em `OS_SERVICE_BASE_URL_PARAMETER` (padrão: `/officyna/os-service/base-url`) e injeta a URL no ConfigMap. A infraestrutura deve atualizar esse parâmetro após criar ou substituir o ELB do `os-service`.
 
-New Relic: agente/configuração do monólito restaurados, nome da aplicação ajustado, license key somente por ambiente. Logs JSON mantêm `message` e `correlationId`; transições e duração usam os mesmos identificadores SERVICE_ORDER_STATUS_CHANGED/SERVICE_ORDER_STATUS_DURATION. Média de labor usa dia de trabalho de **8 horas**, inicialização por estimativa e forceRecalc. Health, métricas HTTP do Actuator e filtros de correlação estão disponíveis.
+---
 
-## Migração e validação
+## ☁️ Infraestrutura e Deploy
 
-Não inferir status a partir de documentos antigos `execution_work` sem status. Antes de atualizar um ambiente já usado, fazer backup e migrar esses documentos com o estado/timestamps autoritativos do os-service. Reenvio de eventForDiagnostics serve apenas para novas OSs RECEBIDA; não deve regredir ordens em andamento. No snapshot persistido, duplicatas de recebimento são ignoradas.
+Este repositório é responsável por construir/publicar a imagem da aplicação e aplicar seus recursos Kubernetes:
 
-Foram adicionados testes unitários de transições, contratos, aprovação, execução paralela permitida, monitoring e duração. **Não foi possível compilar/executar a suíte neste ambiente**: Maven Central não resolveu no DNS; o runtime disponível também é Java 17, enquanto o projeto exige 21. Os checks executados são estruturais, não comprovam integração Mongo/AWS. Executar `./mvnw verify` em Java 21 e os testes de integração descritos no documento antes de deploy.
+- `Deployment`
+- `Service` do tipo `LoadBalancer`
+- `HPA`
+- `ServiceAccount`
+- `ConfigMap`
+- `Secrets`
+
+O cluster EKS, node groups, rede, addons compartilhados, roles e políticas IAM são mantidos pelo repositório de infraestrutura.
+
+Durante o deploy, o workflow conecta-se ao cluster existente, consulta o endpoint do DocumentDB no SSM e executa o rollout da aplicação. A AWS provisiona o endpoint público do Service `LoadBalancer`.
+
+Cada deploy utiliza uma tag de imagem imutável baseada no SHA do commit. As tags `developer` e `latest` permanecem disponíveis como referências, mas não definem a versão aplicada ao Kubernetes.
+
+---
+
+## 📊 Monitoramento e Qualidade
+
+### New Relic
+
+A aplicação mantém a instrumentação New Relic com:
+
+- Nome da aplicação configurado para o microsserviço.
+- License key fornecida exclusivamente por variável de ambiente.
+- Logs estruturados em JSON com `message` e `correlationId`.
+- Eventos de mudança de status e métricas de duração.
+- Métricas HTTP do Spring Boot Actuator e filtros de correlação.
+
+Os identificadores de monitoring preservados são `SERVICE_ORDER_STATUS_CHANGED` e `SERVICE_ORDER_STATUS_DURATION`. O cálculo de média de labor considera um dia de trabalho de **8 horas**.
+
+### Sonar
+
+Acesse a análise de qualidade e os indicadores do projeto:
+
+**[Sonar — production-execution-service](https://sonarcloud.io/project/overview?id=Officyna_officyna-execution-production)**
+
+---
+
+## ⚠️ Observações de Migração e Validação
+
+- Antes de atualizar um ambiente já utilizado, faça backup e migre snapshots antigos de `execution_work` sem status, utilizando os dados autoritativos do `os-service`.
+- O reenvio de `eventForDiagnostics` deve ser utilizado somente para novas OSs `RECEBIDA`; não deve regredir ordens em andamento.
+- Mensagens SQS podem ser entregues mais de uma vez ou fora de ordem. O serviço protege as transições e ignora recebimentos duplicados da mesma OS.
+- A suíte deve ser executada em ambiente com **Java 21** por meio de `./mvnw verify`. A validação estrutural isolada não substitui os testes de integração com MongoDB e AWS.
