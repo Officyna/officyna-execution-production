@@ -241,11 +241,19 @@ jobs:
           }' > "$POLICY_FILE"
           aws sqs set-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attributes "file://$POLICY_FILE"
 
-          aws sns subscribe \
+          # Criar subscription SNS idempotente (sem passar attributes no subscribe para evitar InvalidParameter caso já exista)
+          SUB_ARN=$(aws sns subscribe \
             --topic-arn "$RECUSED_TOPIC_ARN" \
             --protocol sqs \
             --notification-endpoint "$RECUSED_QUEUE_ARN" \
-            --attributes RawMessageDelivery=true
+            --query 'SubscriptionArn' --output text 2>/dev/null || true)
+
+          if [ -n "$SUB_ARN" ] && [ "$SUB_ARN" != "None" ]; then
+            aws sns set-subscription-attributes \
+              --subscription-arn "$SUB_ARN" \
+              --attribute-name RawMessageDelivery \
+              --attribute-value "true" 2>/dev/null || true
+          fi
 
       - name: Ler endpoint do DocumentDB
         id: docdb
