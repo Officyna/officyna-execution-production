@@ -21,6 +21,9 @@ O `os-service` permanece como fonte oficial dos dados e itens da OS. Este micros
 
 ---
 
+> 📖 **Documentação de Arquitetura Completa:** Consulte [docs/ARQUITETURA.md](docs/ARQUITETURA.md) para o detalhamento aprofundado dos padrões DDD, Clean Architecture, Saga distribuída, resiliência e modelo NoSQL poliglota.
+
+
 ## 🎯 Responsabilidades
 
 - **Diagnóstico:** recebe novas OSs e controla o início e a conclusão do diagnóstico.
@@ -152,6 +155,10 @@ Para utilizar um MongoDB externo ao Compose, configure um replica set com hostna
 
 No deploy, o workflow consulta o parâmetro SSM configurado em `OS_SERVICE_BASE_URL_PARAMETER` (padrão: `/officyna/os-service/base-url`) e injeta a URL no ConfigMap. A infraestrutura deve atualizar esse parâmetro após criar ou substituir o ELB do `os-service`.
 
+### Acesso à Documentação da API
+* **Swagger UI Local:** `http://localhost:8080/swagger-ui.html`
+* **Swagger UI no K8s:** `https://{dns-elb}.us-east-1.elb.amazonaws.com/swagger-ui/index.html`
+* **Collection Postman**: `
 ---
 
 ## ☁️ Infraestrutura e Deploy
