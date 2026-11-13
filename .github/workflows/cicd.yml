@@ -1,5 +1,6 @@
 name: CI/CD Pipeline
 
+# Trigger de teste: validar SONAR_TOKEN de organizacao recem-configurado.
 on:
   push:
     branches: [main, developer]
