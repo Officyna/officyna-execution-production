@@ -158,7 +158,7 @@ No deploy, o workflow consulta o parâmetro SSM configurado em `OS_SERVICE_BASE_
 ### Acesso à Documentação da API
 * **Swagger UI Local:** `http://localhost:8080/swagger-ui.html`
 * **Swagger UI no K8s:** `https://{dns-elb}.us-east-1.elb.amazonaws.com/swagger-ui/index.html`
-* **Collection Postman**: [docs/ARQUITETURA.md](docs/Officyna_Execution_Prodution_Service.postman_collection.json)
+* **Collection Postman**: [docs/Officyna_Execution_Prodution_Service](docs/Officyna_Execution_Prodution_Service.postman_collection.json)
 ---
 
 ## ☁️ Infraestrutura e Deploy
