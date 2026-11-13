@@ -440,10 +440,33 @@ class ServiceOrderExecutionServiceTest {
         assertEquals(ServiceOrderStatus.RECUSADA, approvedBillingWork.getStatus());
 
         assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(null, "corr"));
+
         var inExecutionWork = order("os-exec", ServiceOrderStatus.EM_EXECUCAO);
         when(repository.findByServiceOrderId("os-exec")).thenReturn(Optional.of(inExecutionWork));
         assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(
                 new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-exec", "RECUSED", List.of()), "corr"));
+
+        var finalizedWork = order("os-finalized", ServiceOrderStatus.FINALIZADA);
+        when(repository.findByServiceOrderId("os-finalized")).thenReturn(Optional.of(finalizedWork));
+        assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(
+                new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-finalized", "RECUSED", List.of()), "corr"));
+
+        var deliveredWork = order("os-delivered", ServiceOrderStatus.ENTREGUE);
+        when(repository.findByServiceOrderId("os-delivered")).thenReturn(Optional.of(deliveredWork));
+        assertThrows(Exception.class, () -> service.compensateServiceOrderRecused(
+                new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-delivered", "RECUSED", List.of()), "corr"));
+
+        var inDiagnosisWork = order("os-diag", ServiceOrderStatus.EM_DIAGNOSTICO);
+        when(repository.findByServiceOrderId("os-diag")).thenReturn(Optional.of(inDiagnosisWork));
+        service.compensateServiceOrderRecused(
+                new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-diag", "RECUSED", List.of()), "corr-diag");
+        assertEquals(ServiceOrderStatus.RECUSADA, inDiagnosisWork.getStatus());
+
+        var receivedWork = order("os-rec", ServiceOrderStatus.RECEBIDA);
+        when(repository.findByServiceOrderId("os-rec")).thenReturn(Optional.of(receivedWork));
+        service.compensateServiceOrderRecused(
+                new br.com.officyna_execution_production.serviceorder.event.ServiceOrderRecusedEvent("os-rec", "RECUSED", List.of()), "corr-rec");
+        assertEquals(ServiceOrderStatus.RECUSADA, receivedWork.getStatus());
     }
 
     private ExecutionWork order(String id, ServiceOrderStatus status) {

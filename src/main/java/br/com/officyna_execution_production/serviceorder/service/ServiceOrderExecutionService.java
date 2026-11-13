@@ -267,14 +267,17 @@ public class ServiceOrderExecutionService {
             log.info("Ignoring duplicate eventServiceOrderRecused compensation. serviceOrderId={}", event.getServiceOrderId());
             return;
         }
-        if (serviceOrder.getStatus() != ServiceOrderStatus.AGUARDANDO_APROVACAO
-                && serviceOrder.getStatus() != ServiceOrderStatus.APROVADA) {
-            throw new ServiceOrderBusinessException("Transição inválida: esperado AGUARDANDO_APROVACAO ou APROVADA, atual " + serviceOrder.getStatus());
+        if (serviceOrder.getStatus() == ServiceOrderStatus.EM_EXECUCAO
+                || serviceOrder.getStatus() == ServiceOrderStatus.FINALIZADA
+                || serviceOrder.getStatus() == ServiceOrderStatus.ENTREGUE) {
+            throw new ServiceOrderBusinessException("Transição inválida: a ordem de serviço não pode ser recusada no status " + serviceOrder.getStatus());
         }
-        List<StockItemRequest> eventItems = event.toStockItemRequests();
-        List<StockItemRequest> itemsToRelease = !eventItems.isEmpty() ? eventItems : getStockItems(serviceOrder);
-        if (serviceOrder.isStockReserved() || !eventItems.isEmpty()) {
-            stockService.releaseSupplies(serviceOrder.getServiceOrderId(), itemsToRelease);
+        if (serviceOrder.isStockReserved()) {
+            List<StockItemRequest> eventItems = event.toStockItemRequests();
+            List<StockItemRequest> itemsToRelease = !eventItems.isEmpty() ? eventItems : getStockItems(serviceOrder);
+            if (!itemsToRelease.isEmpty()) {
+                stockService.releaseSupplies(serviceOrder.getServiceOrderId(), itemsToRelease);
+            }
             serviceOrder.setStockReserved(false);
         }
         compensateStatus(serviceOrder, ServiceOrderStatus.RECUSADA);
