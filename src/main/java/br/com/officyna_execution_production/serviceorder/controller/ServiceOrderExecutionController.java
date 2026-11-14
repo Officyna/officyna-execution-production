@@ -3,7 +3,7 @@ package br.com.officyna_execution_production.serviceorder.controller;
 import br.com.officyna_execution_production.serviceorder.api.request.*;
 import br.com.officyna_execution_production.serviceorder.domain.entity.ExecutionWork;
 import br.com.officyna_execution_production.serviceorder.service.ServiceOrderExecutionService;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;

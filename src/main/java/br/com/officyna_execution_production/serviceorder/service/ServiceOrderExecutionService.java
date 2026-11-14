@@ -10,7 +10,7 @@ import br.com.officyna_execution_production.administrative.supply.domain.entity.
 import br.com.officyna_execution_production.administrative.supply.domain.service.StockService;
 import br.com.officyna_execution_production.administrative.supply.domain.service.SupplyService;
 import br.com.officyna_execution_production.administrative.supply.api.resources.StockItemRequest;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import br.com.officyna_execution_production.monitoring.domain.service.LaborMonitoringService;
 import br.com.officyna_execution_production.infrastructure.security.AuthenticatedUserDetails;
 import lombok.RequiredArgsConstructor;

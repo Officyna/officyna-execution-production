@@ -1,8 +1,9 @@
 package br.com.officyna_execution_production.serviceorder.service;
 
 import br.com.officyna_execution_production.infrastructure.logging.CorrelationConstants;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +40,7 @@ class OsServiceClientTest {
         SecurityContextHolder.clearContext();
         RequestContextHolder.resetRequestAttributes();
 
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         RestClient.Builder builder = RestClient.builder();
 
         this.mockServer = MockRestServiceServer.bindTo(builder).build();

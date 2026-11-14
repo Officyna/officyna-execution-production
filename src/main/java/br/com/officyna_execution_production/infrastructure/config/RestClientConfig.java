@@ -1,6 +1,7 @@
 package br.com.officyna_execution_production.infrastructure.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -15,6 +16,6 @@ public class RestClientConfig {
 
     @Bean
     public ObjectMapper objectMapper() {
-        return new ObjectMapper().findAndRegisterModules();
+        return JsonMapper.builder().findAndAddModules().build();
     }
 }
