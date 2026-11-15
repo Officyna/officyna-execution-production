@@ -33,6 +33,24 @@
 		<sonar.projectName>Officyna Execution Production</sonar.projectName>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+		<sonar.coverage.exclusions>
+			**/OfficynaExecutionProductionApplication.java,
+			**/infrastructure/config/**,
+			**/infrastructure/converter/**,
+			**/infrastructure/logging/**,
+			**/infrastructure/persistence/**,
+			**/infrastructure/security/**,
+			**/monitoring/infrastructure/persistence/**,
+			**/serviceorder/infrastructure/persistence/**,
+			**/domain/**/repository/**,
+			**/domain/**/mapper/**,
+			**/domain/**/presenter/**,
+			**/serviceorder/domain/repository/**,
+			**/serviceorder/api/request/**,
+			**/serviceorder/event/**,
+			**/administrative/**/api/resources/**,
+			**/monitoring/**/api/resources/**
+		</sonar.coverage.exclusions>
 	</properties>
 
 	<dependencies>
@@ -173,15 +191,24 @@
 								<include>**/administrative/labor/domain/entity/*</include>
 								<include>**/administrative/labor/domain/exception/*</include>
 								<include>**/administrative/labor/domain/service/*</include>
+								<include>**/administrative/labor/api/controller/*</include>
+								<include>**/administrative/labor/api/handler/*</include>
 								<include>**/administrative/supply/domain/entity/*</include>
 								<include>**/administrative/supply/domain/exception/*</include>
 								<include>**/administrative/supply/domain/service/*</include>
+								<include>**/administrative/supply/api/controller/*</include>
+								<include>**/administrative/supply/api/handler/*</include>
 								<include>**/monitoring/domain/entity/*</include>
 								<include>**/monitoring/domain/service/*</include>
+								<include>**/monitoring/api/controller/*</include>
 								<include>**/serviceorder/domain/entity/*</include>
 								<include>**/serviceorder/domain/enums/*</include>
 								<include>**/serviceorder/domain/exception/*</include>
-								<include>**/serviceorder/service/ServiceOrderExecutionService*</include>
+								<include>**/serviceorder/service/*</include>
+								<include>**/serviceorder/consumer/*</include>
+								<include>**/serviceorder/controller/*</include>
+								<include>**/serviceorder/api/handler/*</include>
+								<include>**/infrastructure/auth/AuthService*</include>
 							</includes>
 						</configuration>
 						<goals>
