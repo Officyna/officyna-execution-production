@@ -2,7 +2,7 @@ package br.com.officyna_execution_production.infrastructure.config;
 
 import br.com.officyna_execution_production.infrastructure.exception.ErrorResponse;
 import br.com.officyna_execution_production.infrastructure.security.JwtAuthenticationFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.*;
 import org.springframework.http.MediaType;

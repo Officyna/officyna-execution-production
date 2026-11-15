@@ -1,5 +1,6 @@
 name: CI/CD Pipeline
 
+# Trigger de teste: validar SONAR_TOKEN de organizacao recem-configurado.
 on:
   push:
     branches: [main, developer]
@@ -119,6 +120,9 @@ jobs:
       EKS_CLUSTER_NAME: eks-officyna-service
       EVENT_FOR_DIAGNOSTICS_QUEUE: eventForDiagnostics
       EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnostics-dlq
+      EVENT_SERVICE_ORDER_RECUSED_QUEUE: eventServiceOrderRecused
+      EVENT_SERVICE_ORDER_RECUSED_DLQ: eventServiceOrderRecused-dlq
+      SNS_TOPIC_SERVICE_ORDER_RECUSED: topicServiceOrderRecused
     permissions:
       contents: read
       packages: read
@@ -152,18 +156,105 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Garantir fila de diagnóstico e DLQ
+      - name: Garantir filas SQS, DLQs de compensação SAGA e inscrição no tópico SNS topicAprovacao
         run: |
-          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" >/dev/null
-          DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_DLQ" --query 'QueueUrl' --output text)
-          DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          for QUEUE in "$EVENT_FOR_DIAGNOSTICS_QUEUE" "eventDiagnosis" "eventDiagnosisCompleted"; do
+            DLQ="${QUEUE}Dlq"
+            aws sqs create-queue --queue-name "$DLQ" >/dev/null
+            DLQ_URL=$(aws sqs get-queue-url --queue-name "$DLQ" --query 'QueueUrl' --output text)
+            DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
 
-          aws sqs create-queue --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" >/dev/null
-          QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_FOR_DIAGNOSTICS_QUEUE" --query 'QueueUrl' --output text)
-          ATTRIBUTES_FILE=$(mktemp)
-          trap 'rm -f "$ATTRIBUTES_FILE"' EXIT
-          jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
-          aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
+            aws sqs create-queue --queue-name "$QUEUE" >/dev/null
+            QUEUE_URL=$(aws sqs get-queue-url --queue-name "$QUEUE" --query 'QueueUrl' --output text)
+            ATTRIBUTES_FILE=$(mktemp)
+            jq -nc --arg arn "$DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$ATTRIBUTES_FILE"
+            aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "file://$ATTRIBUTES_FILE"
+            rm -f "$ATTRIBUTES_FILE"
+          done
+
+          for EXTRA_QUEUE in "eventExecutionStarted" "eventForOsCompleted" "eventServiceOrderRecused"; do
+            aws sqs create-queue --queue-name "$EXTRA_QUEUE" >/dev/null
+          done
+
+          APPROVAL_QUEUE_NAME="productionApproval"
+          TOPIC_NAME="topicAprovacao"
+          aws sqs create-queue --queue-name "$APPROVAL_QUEUE_NAME" >/dev/null
+          APPROVAL_QUEUE_URL=$(aws sqs get-queue-url --queue-name "$APPROVAL_QUEUE_NAME" --query 'QueueUrl' --output text)
+          APPROVAL_QUEUE_ARN=$(aws sqs get-queue-attributes --queue-url "$APPROVAL_QUEUE_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          if TOPIC_ARN=$(aws sns create-topic --name "$TOPIC_NAME" --query 'TopicArn' --output text 2>/dev/null); then
+            POLICY_FILE=$(mktemp)
+            jq -nc --arg qarn "$APPROVAL_QUEUE_ARN" --arg tarn "$TOPIC_ARN" '{
+              Policy: ({
+                Version: "2012-10-17",
+                Statement: [{
+                  Sid: "AllowSnsTopicAprovacao",
+                  Effect: "Allow",
+                  Principal: { Service: "sns.amazonaws.com" },
+                  Action: "sqs:SendMessage",
+                  Resource: $qarn,
+                  Condition: { ArnEquals: { "aws:SourceArn": $tarn } }
+                }]
+              } | tojson)
+            }' > "$POLICY_FILE"
+            aws sqs set-queue-attributes --queue-url "$APPROVAL_QUEUE_URL" --attributes "file://$POLICY_FILE" || true
+            rm -f "$POLICY_FILE"
+
+            aws sns subscribe \
+              --topic-arn "$TOPIC_ARN" \
+              --protocol sqs \
+              --notification-endpoint "$APPROVAL_QUEUE_ARN" \
+              --attributes RawMessageDelivery=true >/dev/null || true
+          fi
+
+      - name: Garantir fila de recusa de OS e subscription SNS
+        run: |
+          # Criar DLQ para recusa
+          aws sqs create-queue --queue-name "$EVENT_SERVICE_ORDER_RECUSED_DLQ" >/dev/null
+          RECUSED_DLQ_URL=$(aws sqs get-queue-url --queue-name "$EVENT_SERVICE_ORDER_RECUSED_DLQ" --query 'QueueUrl' --output text)
+          RECUSED_DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "$RECUSED_DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+
+          # Criar fila principal com redrive para a DLQ
+          aws sqs create-queue --queue-name "$EVENT_SERVICE_ORDER_RECUSED_QUEUE" >/dev/null
+          RECUSED_QUEUE_URL=$(aws sqs get-queue-url --queue-name "$EVENT_SERVICE_ORDER_RECUSED_QUEUE" --query 'QueueUrl' --output text)
+          RECUSED_QUEUE_ARN=$(aws sqs get-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+          REDRIVE_FILE=$(mktemp)
+          trap 'rm -f "$REDRIVE_FILE"' EXIT
+          jq -nc --arg arn "$RECUSED_DLQ_ARN" '{RedrivePolicy: ({deadLetterTargetArn: $arn, maxReceiveCount: "5"} | tojson)}' > "$REDRIVE_FILE"
+          aws sqs set-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attributes "file://$REDRIVE_FILE"
+
+          # Criar tópico SNS (idempotente) e subscribir a fila
+          RECUSED_TOPIC_ARN=$(aws sns create-topic --name "$SNS_TOPIC_SERVICE_ORDER_RECUSED" --query 'TopicArn' --output text)
+
+          # Permitir que o SNS publique na fila SQS
+          POLICY_FILE=$(mktemp)
+          trap 'rm -f "$POLICY_FILE"' EXIT
+          jq -nc --arg qarn "$RECUSED_QUEUE_ARN" --arg tarn "$RECUSED_TOPIC_ARN" '{
+            Policy: ({
+              Version: "2012-10-17",
+              Statement: [{
+                Effect: "Allow",
+                Principal: {Service: "sns.amazonaws.com"},
+                Action: "sqs:SendMessage",
+                Resource: $qarn,
+                Condition: {ArnEquals: {"aws:SourceArn": $tarn}}
+              }]
+            } | tojson)
+          }' > "$POLICY_FILE"
+          aws sqs set-queue-attributes --queue-url "$RECUSED_QUEUE_URL" --attributes "file://$POLICY_FILE"
+
+          # Criar subscription SNS idempotente (sem passar attributes no subscribe para evitar InvalidParameter caso já exista)
+          SUB_ARN=$(aws sns subscribe \
+            --topic-arn "$RECUSED_TOPIC_ARN" \
+            --protocol sqs \
+            --notification-endpoint "$RECUSED_QUEUE_ARN" \
+            --query 'SubscriptionArn' --output text 2>/dev/null || true)
+
+          if [ -n "$SUB_ARN" ] && [ "$SUB_ARN" != "None" ]; then
+            aws sns set-subscription-attributes \
+              --subscription-arn "$SUB_ARN" \
+              --attribute-name RawMessageDelivery \
+              --attribute-value "true" 2>/dev/null || true
+          fi
 
       - name: Ler endpoint do DocumentDB
         id: docdb

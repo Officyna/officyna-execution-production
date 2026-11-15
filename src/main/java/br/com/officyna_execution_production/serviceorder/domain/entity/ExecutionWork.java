@@ -69,8 +69,13 @@ public class ExecutionWork {
                     "Apenas ordens EM EXECUÇÃO podem ser finalizadas.");
             case ENTREGUE -> validatePreviousStatus(ServiceOrderStatus.FINALIZADA,
                     "Apenas ordes FINALIZADAS podem ser consideradas entregues");
-            case RECUSADA -> validatePreviousStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO,
-                    "Apenas ordens AGUARDANDO APROVAÇÃO podem ser recusadas.");
+            case RECUSADA -> {
+                if (this.status == ServiceOrderStatus.EM_EXECUCAO
+                        || this.status == ServiceOrderStatus.FINALIZADA
+                        || this.status == ServiceOrderStatus.ENTREGUE) {
+                    throw new ServiceOrderBusinessException("Não é possível recusar a Ordem de Serviço no status " + this.status.getStatusName() + ".");
+                }
+            }
         }
     }
 

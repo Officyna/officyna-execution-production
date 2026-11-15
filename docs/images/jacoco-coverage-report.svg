@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="480" rx="16" fill="url(#bg)" />
+
+  <!-- Card Border -->
+  <rect x="1" y="1" width="898" height="478" rx="15" fill="none" stroke="#334155" stroke-width="1.5" />
+
+  <!-- Header -->
+  <g transform="translate(36, 40)">
+    <!-- JaCoCo / Quality Badge -->
+    <rect x="0" y="0" width="140" height="26" rx="6" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="1" />
+    <text x="12" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#34d399">● QUALITY GATE: PASSED</text>
+
+    <!-- Title -->
+    <text x="0" y="56" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="800" fill="#f8fafc">JaCoCo Code Coverage &amp; Test Summary</text>
+    <text x="0" y="78" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#94a3b8">officyna-execution-production | Tech Challenge Fase 4 — FIAP (Meta &gt;= 80%)</text>
+  </g>
+
+  <!-- KPI Cards -->
+  <g transform="translate(36, 140)">
+    <!-- Instruction Coverage -->
+    <g transform="translate(0, 0)">
+      <rect width="190" height="100" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)" />
+      <text x="16" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#94a3b8" text-transform="uppercase">Instruções</text>
+      <text x="16" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="800" fill="#10b981">98%</text>
+      <text x="96" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#64748b">2.398 / 2.439</text>
+      <!-- Progress Bar -->
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="#334155" />
+      <rect x="16" y="80" width="154.8" height="6" rx="3" fill="url(#primaryGrad)" />
+    </g>
+
+    <!-- Line Coverage -->
+    <g transform="translate(210, 0)">
+      <rect width="190" height="100" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)" />
+      <text x="16" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#94a3b8" text-transform="uppercase">Linhas de Código</text>
+      <text x="16" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="800" fill="#10b981">100%</text>
+      <text x="110" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#64748b">569 / 569</text>
+      <!-- Progress Bar -->
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="#334155" />
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="url(#primaryGrad)" />
+    </g>
+
+    <!-- Method Coverage -->
+    <g transform="translate(420, 0)">
+      <rect width="190" height="100" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)" />
+      <text x="16" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#94a3b8" text-transform="uppercase">Métodos</text>
+      <text x="16" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="800" fill="#3b82f6">100%</text>
+      <text x="110" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#64748b">93 / 93</text>
+      <!-- Progress Bar -->
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="#334155" />
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="url(#accentGrad)" />
+    </g>
+
+    <!-- Branch Coverage -->
+    <g transform="translate(630, 0)">
+      <rect width="190" height="100" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow)" />
+      <text x="16" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#94a3b8" text-transform="uppercase">Branches</text>
+      <text x="16" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="800" fill="#f59e0b">79%</text>
+      <text x="96" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#64748b">196 / 248</text>
+      <!-- Progress Bar -->
+      <rect x="16" y="80" width="158" height="6" rx="3" fill="#334155" />
+      <rect x="16" y="80" width="124.8" height="6" rx="3" fill="url(#amberGrad)" />
+    </g>
+  </g>
+
+  <!-- Detailed Table -->
+  <g transform="translate(36, 260)">
+    <!-- Table Header Background -->
+    <rect width="820" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="16" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#94a3b8">PACOTE / MÓDULO DE DOMÍNIO</text>
+    <text x="440" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#94a3b8">INSTRUÇÕES</text>
+    <text x="560" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#94a3b8">LINHAS</text>
+    <text x="660" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#94a3b8">BRANCHES</text>
+    <text x="760" y="22" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#94a3b8">STATUS</text>
+
+    <!-- Row 1: serviceorder.service -->
+    <g transform="translate(0, 42)">
+      <text x="16" y="16" font-family="monospace" font-size="12" fill="#f1f5f9">br.com...serviceorder.service</text>
+      <text x="440" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">98%</text>
+      <text x="560" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100% (160/160)</text>
+      <text x="660" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#cbd5e1">77%</text>
+      <text x="760" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#34d399">APROVADO</text>
+      <line x1="16" y1="26" x2="804" y2="26" stroke="#334155" stroke-dasharray="2 4" />
+    </g>
+
+    <!-- Row 2: monitoring.domain.service -->
+    <g transform="translate(0, 74)">
+      <text x="16" y="16" font-family="monospace" font-size="12" fill="#f1f5f9">br.com...monitoring.domain.service</text>
+      <text x="440" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">99%</text>
+      <text x="560" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100% (162/162)</text>
+      <text x="660" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#cbd5e1">85%</text>
+      <text x="760" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#34d399">APROVADO</text>
+      <line x1="16" y1="26" x2="804" y2="26" stroke="#334155" stroke-dasharray="2 4" />
+    </g>
+
+    <!-- Row 3: administrative.supply.domain.service -->
+    <g transform="translate(0, 106)">
+      <text x="16" y="16" font-family="monospace" font-size="12" fill="#f1f5f9">br.com...administrative.supply.service</text>
+      <text x="440" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">98%</text>
+      <text x="560" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100% (99/99)</text>
+      <text x="660" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#cbd5e1">72%</text>
+      <text x="760" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#34d399">APROVADO</text>
+      <line x1="16" y1="26" x2="804" y2="26" stroke="#334155" stroke-dasharray="2 4" />
+    </g>
+
+    <!-- Row 4: administrative.labor.domain.service -->
+    <g transform="translate(0, 138)">
+      <text x="16" y="16" font-family="monospace" font-size="12" fill="#f1f5f9">br.com...administrative.labor.service</text>
+      <text x="440" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">99%</text>
+      <text x="560" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100% (56/56)</text>
+      <text x="660" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#cbd5e1">75%</text>
+      <text x="760" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#34d399">APROVADO</text>
+      <line x1="16" y1="26" x2="804" y2="26" stroke="#334155" stroke-dasharray="2 4" />
+    </g>
+
+    <!-- Row 5: serviceorder.domain.entity -->
+    <g transform="translate(0, 170)">
+      <text x="16" y="16" font-family="monospace" font-size="12" fill="#f1f5f9">br.com...serviceorder.domain.entity</text>
+      <text x="440" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100%</text>
+      <text x="560" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#10b981">100% (39/39)</text>
+      <text x="660" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#cbd5e1">92%</text>
+      <text x="760" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#34d399">APROVADO</text>
+    </g>
+  </g>
+</svg>

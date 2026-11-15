@@ -21,10 +21,9 @@ public class BillingEventConsumer {
     public void consume(
             BillingDecisionEvent event,
             @Header(name = "correlationId", required = false) String correlationId,
+            @Header(name = CorrelationConstants.LEGACY_CORRELATION_ID_HEADER, required = false) String legacyCorrelationId,
             @Header(name = CorrelationConstants.AUTHORIZATION_HEADER, required = false) String authorization) {
-        String resolvedCorrelationId = (correlationId == null || correlationId.isBlank())
-                ? UUID.randomUUID().toString()
-                : correlationId;
+        String resolvedCorrelationId = resolveCorrelationId(correlationId, legacyCorrelationId);
         try {
             MDC.put(CorrelationConstants.CORRELATION_ID_KEY, resolvedCorrelationId);
             if (authorization != null && !authorization.isBlank()) {
@@ -35,5 +34,15 @@ public class BillingEventConsumer {
             MDC.remove(CorrelationConstants.CORRELATION_ID_KEY);
             MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
         }
+    }
+
+    private String resolveCorrelationId(String correlationId, String legacyCorrelationId) {
+        if (correlationId != null && !correlationId.isBlank()) {
+            return correlationId;
+        }
+        if (legacyCorrelationId != null && !legacyCorrelationId.isBlank()) {
+            return legacyCorrelationId;
+        }
+        return UUID.randomUUID().toString();
     }
 }

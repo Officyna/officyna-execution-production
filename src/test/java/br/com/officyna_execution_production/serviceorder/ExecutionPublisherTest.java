@@ -71,4 +71,18 @@ class ExecutionPublisherTest {
         assertThrows(IllegalArgumentException.class,
                 () -> publisher.publish("eventDiagnosisCompleted", new ServiceOrderIdEvent("os-1"), null));
     }
+
+    @Test
+    void publishesDiagnosticsDlqEventToConfiguredQueue() {
+        SqsTemplate sqs = mock(SqsTemplate.class);
+        ExecutionPublisher publisher = new ExecutionPublisher(sqs);
+        ReflectionTestUtils.setField(publisher, "diagnosticsDlqQueue", "eventForDiagnosticsDlq");
+
+        publisher.publish("eventForDiagnosticsDlq", new ServiceOrderIdEvent("os-dlq"), "corr-dlq");
+
+        var captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(sqs).send(eq("eventForDiagnosticsDlq"), captor.capture());
+        assertEquals(new ServiceOrderIdEvent("os-dlq"), captor.getValue().getPayload());
+        assertEquals("corr-dlq", captor.getValue().getHeaders().get("correlationId"));
+    }
 }

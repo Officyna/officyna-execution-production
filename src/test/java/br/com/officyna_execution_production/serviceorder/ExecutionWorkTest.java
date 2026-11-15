@@ -55,6 +55,24 @@ class ExecutionWorkTest {
 
         assertNotNull(work.getStockReservationItems());
         assertNotNull(work.getRefuseDate());
+
+        var received = ExecutionWork.builder().status(ServiceOrderStatus.RECEBIDA).build();
+        received.setStatus(ServiceOrderStatus.RECUSADA);
+        assertEquals(ServiceOrderStatus.RECUSADA, received.getStatus());
+
+        var inDiag = ExecutionWork.builder().status(ServiceOrderStatus.EM_DIAGNOSTICO).build();
+        inDiag.setStatus(ServiceOrderStatus.RECUSADA);
+        assertEquals(ServiceOrderStatus.RECUSADA, inDiag.getStatus());
+
+        var approved = ExecutionWork.builder().status(ServiceOrderStatus.APROVADA).build();
+        approved.setStatus(ServiceOrderStatus.RECUSADA);
+        assertEquals(ServiceOrderStatus.RECUSADA, approved.getStatus());
+
+        var inExec = ExecutionWork.builder().status(ServiceOrderStatus.EM_EXECUCAO).build();
+        assertThrows(ServiceOrderBusinessException.class, () -> inExec.setStatus(ServiceOrderStatus.RECUSADA));
+
+        var finished = ExecutionWork.builder().status(ServiceOrderStatus.FINALIZADA).build();
+        assertThrows(ServiceOrderBusinessException.class, () -> finished.setStatus(ServiceOrderStatus.RECUSADA));
     }
 
     @Test
